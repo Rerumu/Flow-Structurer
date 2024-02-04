@@ -20,3 +20,10 @@ path = "fuzz_targets/full.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "repeat"
+path = "fuzz_targets/repeat.rs"
+test = false
+doc = false
+bench = false
