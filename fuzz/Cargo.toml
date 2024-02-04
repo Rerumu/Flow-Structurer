@@ -13,3 +13,10 @@ libfuzzer-sys = "0.4.7"
 
 [dependencies.perfect-reconstructibility]
 path = ".."
+
+[[bin]]
+name = "full"
+path = "fuzz_targets/full.rs"
+test = false
+doc = false
+bench = false
