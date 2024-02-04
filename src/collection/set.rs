@@ -1,9 +1,11 @@
+/// A set of natural numbers.
 #[derive(Default)]
 pub struct Set {
 	elements: Vec<bool>,
 }
 
 impl Set {
+	/// Creates a new instance of the set.
 	#[must_use]
 	pub const fn new() -> Self {
 		let elements = Vec::new();
@@ -11,6 +13,7 @@ impl Set {
 		Self { elements }
 	}
 
+	/// Inserts the given index into the set and returns the previous state.
 	pub fn insert(&mut self, index: usize) -> bool {
 		if let Some(element) = self.elements.get_mut(index) {
 			std::mem::replace(element, true)
@@ -24,16 +27,19 @@ impl Set {
 		}
 	}
 
+	/// Removes the given index from the set and returns the previous state.
 	pub fn remove(&mut self, index: usize) -> bool {
 		self.elements
 			.get_mut(index)
 			.map_or(false, |element| std::mem::replace(element, false))
 	}
 
+	/// Clears the set, removing all elements.
 	pub fn clear(&mut self) {
 		self.elements.clear();
 	}
 
+	/// Returns the set as a lightweight slice.
 	#[must_use]
 	pub fn as_slice(&self) -> Slice<'_> {
 		Slice {
@@ -41,19 +47,23 @@ impl Set {
 		}
 	}
 
+	/// Returns the state of the given index.
 	#[must_use]
 	pub fn get(&self, index: usize) -> bool {
 		self.as_slice().get(index)
 	}
 
+	/// Returns an iterator over the elements of the set.
 	pub fn iter(&self) -> impl Iterator<Item = bool> + '_ {
 		self.as_slice().iter()
 	}
 
+	/// Returns an iterator over the indices of the set elements that are `true`.
 	pub fn ones(&self) -> impl Iterator<Item = usize> + '_ {
 		self.as_slice().ones()
 	}
 
+	/// Returns an iterator over the indices of the set elements that are `false`.
 	pub fn zeros(&self) -> impl Iterator<Item = usize> + '_ {
 		self.as_slice().zeros()
 	}
@@ -95,27 +105,32 @@ impl std::fmt::Debug for Set {
 	}
 }
 
+/// A lightweight slice of a set.
 #[derive(Clone, Copy)]
 pub struct Slice<'a> {
 	elements: &'a [bool],
 }
 
 impl<'a> Slice<'a> {
+	/// Returns the state of the given index.
 	#[must_use]
 	pub fn get(self, index: usize) -> bool {
 		self.elements.get(index).copied().unwrap_or_default()
 	}
 
+	/// Returns an iterator over the elements of the slice.
 	pub fn iter(self) -> impl Iterator<Item = bool> + 'a {
 		self.elements.iter().copied()
 	}
 
+	/// Returns an iterator over the indices of the slice elements that are `true`.
 	pub fn ones(self) -> impl Iterator<Item = usize> + 'a {
 		self.iter()
 			.enumerate()
 			.filter_map(|(index, element)| element.then_some(index))
 	}
 
+	/// Returns an iterator over the indices of the slice elements that are `false`.
 	pub fn zeros(self) -> impl Iterator<Item = usize> + 'a {
 		self.iter()
 			.enumerate()

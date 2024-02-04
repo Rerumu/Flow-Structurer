@@ -10,6 +10,9 @@ pub struct Branch {
 	pub start: usize,
 }
 
+/// This structure implements a single pass of this algorithm. It assumes that the set
+/// provided is a branch construct and that the start node is the head of that branch.
+/// Additionally, all strongly connected components are assumed to have been normalized.
 #[derive(Default)]
 pub struct Single {
 	branches: Vec<Branch>,
@@ -21,6 +24,7 @@ pub struct Single {
 }
 
 impl Single {
+	/// Creates a new instance of the restructurer.
 	#[must_use]
 	pub const fn new() -> Self {
 		Self {
@@ -171,19 +175,24 @@ impl Single {
 		exit
 	}
 
+	/// Returns the synthetic nodes created during the restructuring.
 	#[must_use]
 	pub fn synthetics(&self) -> &[usize] {
 		&self.synthetics
 	}
 
+	/// Returns the tail set of the restructured branch.
 	pub fn tail_mut(&mut self) -> &mut Set {
 		&mut self.tail
 	}
 
+	/// Returns the branch bodies of the restructured branch.
 	pub fn branches_mut(&mut self) -> &mut Vec<Branch> {
 		&mut self.branches
 	}
 
+	/// Applies the restructuring algorithm to the given set of nodes starting at the head.
+	/// The end node of the structured branch is returned, if applicable.
 	pub fn restructure<N: NodesMut>(
 		&mut self,
 		nodes: &mut N,

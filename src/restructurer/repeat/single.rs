@@ -3,6 +3,9 @@ use crate::{
 	control_flow::{Nodes, NodesMut, Var},
 };
 
+/// This structure implements a single pass of this algorithm. It assumes that the set
+/// provided is a strongly connected component and that there is at least one edge
+/// from outside the set coming in.
 #[derive(Default)]
 pub struct Single {
 	point_in: Vec<usize>,
@@ -12,6 +15,7 @@ pub struct Single {
 }
 
 impl Single {
+	/// Creates a new instance of the restructurer.
 	#[must_use]
 	pub const fn new() -> Self {
 		Self {
@@ -130,11 +134,14 @@ impl Single {
 		selection
 	}
 
+	/// Returns the synthetic nodes created during the restructuring.
 	#[must_use]
 	pub fn synthetics(&self) -> &[usize] {
 		&self.synthetics
 	}
 
+	/// Applies the restructuring algorithm to the given set of nodes.
+	/// The start node of the structured repetition is returned.
 	pub fn restructure<N: NodesMut>(&mut self, nodes: &mut N, set: Slice) -> usize {
 		if let Some(start) = self.find_start_if_structured(nodes, set) {
 			self.synthetics.clear();

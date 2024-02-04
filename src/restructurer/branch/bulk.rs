@@ -5,6 +5,8 @@ use crate::{
 
 use super::single::{Branch, Single};
 
+/// This structure implements a bulk recursive algorithm to restructure a set of nodes.
+/// More details are provided in [`Single`].
 pub struct Bulk {
 	single: Single,
 
@@ -13,6 +15,7 @@ pub struct Bulk {
 }
 
 impl Bulk {
+	/// Creates a new instance of the restructurer.
 	#[must_use]
 	pub const fn new() -> Self {
 		Self {
@@ -55,6 +58,7 @@ impl Bulk {
 		self.branches.append(self.single.branches_mut());
 	}
 
+	/// Restructures the nodes in the given set.
 	pub fn restructure<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set, mut start: usize) {
 		self.set.clone_from(set);
 
