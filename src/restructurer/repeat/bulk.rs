@@ -7,6 +7,7 @@ use super::{single::Single, strongly_connected_finder::StronglyConnectedFinder};
 
 /// This structure implements a bulk recursive algorithm to restructure a set of nodes.
 /// More details are provided in [`Single`].
+#[derive(Default)]
 pub struct Bulk {
 	strongly_connected_finder: StronglyConnectedFinder,
 	single: Single,
