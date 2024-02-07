@@ -12,6 +12,8 @@ struct Item {
 pub struct DepthFirstSearcher {
 	items: Vec<Item>,
 	wait: Set,
+
+	vec_pooled: Vec<Vec<usize>>,
 }
 
 impl DepthFirstSearcher {
@@ -20,6 +22,7 @@ impl DepthFirstSearcher {
 		Self {
 			items: Vec::new(),
 			wait: Set::new(),
+			vec_pooled: Vec::new(),
 		}
 	}
 
@@ -32,8 +35,9 @@ impl DepthFirstSearcher {
 			return;
 		}
 
-		let mut successors: Vec<_> = nodes.successors(id).collect();
+		let mut successors = self.vec_pooled.pop().unwrap_or_default();
 
+		successors.extend(nodes.successors(id));
 		successors.reverse();
 
 		self.items.push(Item { id, successors });
@@ -65,6 +69,8 @@ impl DepthFirstSearcher {
 				self.queue_item(nodes, successor, &mut handler);
 			} else {
 				handler(item.id, true);
+
+				self.vec_pooled.push(item.successors);
 			}
 		}
 	}
