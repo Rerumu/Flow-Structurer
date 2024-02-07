@@ -36,7 +36,7 @@ impl StronglyConnectedFinder {
 		self.names.clear();
 		self.names.resize(last, usize::MAX);
 
-		self.depth_first_searcher.initialize(set);
+		self.depth_first_searcher.restrict(set.ones());
 	}
 
 	fn on_pre_order<N: Nodes>(&mut self, nodes: &N, id: usize) {

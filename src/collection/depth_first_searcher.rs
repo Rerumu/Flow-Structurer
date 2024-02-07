@@ -1,7 +1,4 @@
-use crate::{
-	collection::set::{Set, Slice},
-	control_flow::Nodes,
-};
+use crate::{collection::set::Set, control_flow::Nodes};
 
 struct Item {
 	id: usize,
@@ -50,9 +47,9 @@ impl DepthFirstSearcher {
 		&self.wait
 	}
 
-	pub fn initialize(&mut self, set: Slice) {
+	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
 		self.wait.clear();
-		self.wait.extend(set.ones());
+		self.wait.extend(set);
 	}
 
 	pub fn run<N, H>(&mut self, nodes: &N, start: usize, mut handler: H)

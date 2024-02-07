@@ -44,7 +44,7 @@ impl DominatorFinder {
 		self.id_to_post.clear();
 		self.id_to_post.resize(last, usize::MAX);
 
-		self.depth_first_searcher.initialize(set);
+		self.depth_first_searcher.restrict(set.ones());
 		self.depth_first_searcher.run(nodes, start, |id, post| {
 			if !post {
 				return;
