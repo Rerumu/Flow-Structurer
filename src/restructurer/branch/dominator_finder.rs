@@ -3,8 +3,8 @@
 //     by Keith D. Cooper, Timothy J. Harvey, and Ken Kennedy
 
 use crate::{
-	collection::set::Slice, control_flow::Nodes,
-	restructurer::depth_first_searcher::DepthFirstSearcher,
+	collection::{depth_first_searcher::DepthFirstSearcher, set::Slice},
+	control_flow::Nodes,
 };
 
 #[derive(Default)]

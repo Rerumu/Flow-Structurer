@@ -3,9 +3,11 @@
 //     by Harold N. Gabow
 
 use crate::{
-	collection::set::{Set, Slice},
+	collection::{
+		depth_first_searcher::DepthFirstSearcher,
+		set::{Set, Slice},
+	},
 	control_flow::Nodes,
-	restructurer::depth_first_searcher::DepthFirstSearcher,
 };
 
 #[derive(Default)]
