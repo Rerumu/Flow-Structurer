@@ -4,23 +4,29 @@ use perfect_reconstructibility::{
 	control_flow::{Nodes, NodesMut, Var},
 };
 
-#[derive(Debug)]
 pub enum Instruction {
-	Start,
-	End,
+	NoOperation,
 	Simple,
-	Assign { var: Var, value: usize },
-	Select { var: Var },
+	Selection { var: Var },
+	SetVariable { var: Var, value: usize },
 }
 
-impl std::fmt::Display for Instruction {
+impl Instruction {
+	const fn is_synthetic(&self) -> bool {
+		matches!(
+			self,
+			Self::NoOperation | Self::Selection { .. } | Self::SetVariable { .. }
+		)
+	}
+}
+
+impl std::fmt::Debug for Instruction {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Self::Start => write!(f, "Start"),
-			Self::End => write!(f, "End"),
+			Self::NoOperation => write!(f, "No Operation"),
 			Self::Simple => write!(f, "Simple"),
-			Self::Assign { var, value } => write!(f, "{var:?} := {value}"),
-			Self::Select { var } => write!(f, "Select {var:?}"),
+			Self::Selection { var } => write!(f, "Selection {var:?}"),
+			Self::SetVariable { var, value } => write!(f, "{var:?} := {value}"),
 		}
 	}
 }
@@ -29,12 +35,10 @@ struct Node {
 	predecessors: Vec<usize>,
 	successors: Vec<usize>,
 	instruction: Instruction,
-	synthetic: bool,
 }
 
 pub struct List {
 	nodes: Vec<Node>,
-	synthetic: bool,
 }
 
 impl std::fmt::Debug for List {
@@ -56,7 +60,7 @@ impl std::fmt::Debug for List {
 
 			write!(f, "\"")?;
 
-			if node.synthetic {
+			if node.instruction.is_synthetic() {
 				write!(f, ", fillcolor = \"#FFDDDD\"")?;
 			}
 
@@ -69,10 +73,9 @@ impl std::fmt::Debug for List {
 
 impl List {
 	pub fn with_capacity(capacity: usize) -> Self {
-		Self {
-			nodes: Vec::with_capacity(capacity),
-			synthetic: false,
-		}
+		let nodes = Vec::with_capacity(capacity);
+
+		Self { nodes }
 	}
 
 	pub fn ids(&self) -> Set {
@@ -84,15 +87,10 @@ impl List {
 			predecessors: Vec::new(),
 			successors: Vec::new(),
 			instruction,
-			synthetic: self.synthetic,
 		};
 
 		self.nodes.push(node);
 		self.nodes.len() - 1
-	}
-
-	pub fn set_synthetic(&mut self, synthetic: bool) {
-		self.synthetic = synthetic;
 	}
 }
 
@@ -108,15 +106,15 @@ impl Nodes for List {
 
 impl NodesMut for List {
 	fn add_no_operation(&mut self) -> usize {
-		self.add_instruction(Instruction::Simple)
+		self.add_instruction(Instruction::NoOperation)
 	}
 
 	fn add_variable(&mut self, var: Var, value: usize) -> usize {
-		self.add_instruction(Instruction::Assign { var, value })
+		self.add_instruction(Instruction::SetVariable { var, value })
 	}
 
 	fn add_selection(&mut self, var: Var) -> usize {
-		self.add_instruction(Instruction::Select { var })
+		self.add_instruction(Instruction::Selection { var })
 	}
 
 	fn add_link(&mut self, from: usize, to: usize) {
@@ -150,15 +148,12 @@ impl Arbitrary<'_> for List {
 		let mut list = Self::with_capacity(len);
 
 		for id in 0..len {
-			list.add_no_operation();
+			list.add_instruction(Instruction::Simple);
 
 			if let Some(last) = id.checked_sub(1) {
 				list.add_link(last, id);
 			}
 		}
-
-		list.nodes.first_mut().unwrap().instruction = Instruction::Start;
-		list.nodes.last_mut().unwrap().instruction = Instruction::End;
 
 		for _ in 0..u.arbitrary_len::<(usize, usize)>()? {
 			let a = u.choose_index(list.nodes.len())?.max(1);
@@ -170,8 +165,6 @@ impl Arbitrary<'_> for List {
 				list.add_link(a.max(b), a.min(b));
 			}
 		}
-
-		list.set_synthetic(true);
 
 		Ok(list)
 	}
