@@ -84,21 +84,39 @@ impl Single {
 		})
 	}
 
+	fn pull_to_tail(&mut self, id: usize) {
+		if self.tail.insert(id) {
+			return;
+		}
+
+		for Branch { set, .. } in &mut self.branches {
+			set.remove(id);
+		}
+	}
+
 	fn trim_continuations<N: Nodes>(&mut self, nodes: &N) {
-		for predecessor in self.continuations.iter().flat_map(|&id| {
+		let continuations = std::mem::take(&mut self.continuations);
+
+		for predecessor in continuations.iter().flat_map(|&id| {
 			nodes
 				.predecessors(id)
 				.filter(|&id| nodes.has_assignment(id, Var::Branch))
 		}) {
-			if !self.tail.insert(predecessor) {
-				for Branch { set, .. } in &mut self.branches {
-					set.remove(predecessor);
+			self.pull_to_tail(predecessor);
+
+			let mut predecessors = nodes.predecessors(predecessor);
+
+			if let (Some(destination), None) = (predecessors.next(), predecessors.next()) {
+				if nodes.has_assignment(destination, Var::Destination) {
+					self.pull_to_tail(destination);
 				}
 			}
 		}
 
+		self.continuations = continuations;
+
 		self.branches
-			.retain(|branch| branch.set.ones().next().is_some());
+			.retain(|Branch { set, .. }| set.ones().next().is_some());
 	}
 
 	fn find_continuations<N: Nodes>(&mut self, nodes: &N, set: Slice) {
