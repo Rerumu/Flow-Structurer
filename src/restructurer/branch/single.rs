@@ -76,6 +76,31 @@ impl Single {
 		self.tail.remove(head);
 	}
 
+	fn has_tail_predicates<N: Nodes>(&self, nodes: &N) -> bool {
+		self.continuations.iter().any(|&continuation| {
+			nodes
+				.predecessors(continuation)
+				.any(|id| self.tail.get(id) && nodes.has_assignment(id, Var::Branch))
+		})
+	}
+
+	fn trim_continuations<N: Nodes>(&mut self, nodes: &N) {
+		for predecessor in self.continuations.iter().flat_map(|&id| {
+			nodes
+				.predecessors(id)
+				.filter(|&id| nodes.has_assignment(id, Var::Branch))
+		}) {
+			if !self.tail.insert(predecessor) {
+				for Branch { set, .. } in &mut self.branches {
+					set.remove(predecessor);
+				}
+			}
+		}
+
+		self.branches
+			.retain(|branch| branch.set.ones().next().is_some());
+	}
+
 	fn find_continuations<N: Nodes>(&mut self, nodes: &N, set: Slice) {
 		self.continuations.clear();
 		self.continuations.extend(self.tail.ones().filter(|&tail| {
@@ -212,6 +237,11 @@ impl Single {
 		} else if self.continuations.is_empty() {
 			None
 		} else {
+			if self.has_tail_predicates(nodes) {
+				self.trim_continuations(nodes);
+				self.find_continuations(nodes, set);
+			}
+
 			let exit = self.restructure_branches(nodes, head);
 
 			Some(exit)

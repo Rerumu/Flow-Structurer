@@ -102,6 +102,14 @@ impl Nodes for List {
 	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_ {
 		self.nodes[id].successors.iter().copied()
 	}
+
+	fn has_assignment(&self, id: usize, var: Var) -> bool {
+		if let Instruction::SetVariable { var: old, .. } = self.nodes[id].instruction {
+			old == var
+		} else {
+			false
+		}
+	}
 }
 
 impl NodesMut for List {

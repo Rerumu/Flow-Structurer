@@ -1,3 +1,11 @@
+/// A reserved variable for synthetic control flow nodes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Var {
+	Destination,
+	Repetition,
+	Branch,
+}
+
 /// An immutable control flow graph.
 pub trait Nodes {
 	/// Returns an iterator over the predecessors of the given node.
@@ -5,14 +13,9 @@ pub trait Nodes {
 
 	/// Returns an iterator over the successors of the given node.
 	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
-}
 
-/// A reserved variable for synthetic control flow nodes.
-#[derive(Clone, Copy, Debug)]
-pub enum Var {
-	Destination,
-	Repetition,
-	Branch,
+	/// Returns whether a node has an assignment to a synthetic variable.
+	fn has_assignment(&self, id: usize, var: Var) -> bool;
 }
 
 /// A mutable control flow graph.
