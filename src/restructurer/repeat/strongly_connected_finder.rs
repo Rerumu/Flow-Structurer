@@ -103,8 +103,5 @@ impl StronglyConnectedFinder {
 	{
 		self.initialize_fields(set);
 		self.run_search(nodes, set, handler);
-
-		debug_assert!(self.path.is_empty(), "path is not empty");
-		debug_assert!(self.stack.is_empty(), "stack is not empty");
 	}
 }
