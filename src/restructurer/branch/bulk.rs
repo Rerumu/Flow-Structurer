@@ -47,7 +47,7 @@ impl Bulk {
 	}
 
 	fn restructure_branch<N: NodesMut>(&mut self, nodes: &mut N, head: usize) {
-		if let Some(exit) = self.single.restructure(nodes, self.set.as_slice(), head) {
+		if let Some(exit) = self.single.run(nodes, self.set.as_slice(), head) {
 			let tail = std::mem::take(self.single.tail_mut());
 
 			self.branches.push(Branch {
@@ -60,7 +60,7 @@ impl Bulk {
 	}
 
 	/// Restructures the nodes in the given set.
-	pub fn restructure<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set, mut start: usize) {
+	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set, mut start: usize) {
 		self.set.clone_from(set);
 
 		loop {

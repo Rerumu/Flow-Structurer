@@ -236,12 +236,7 @@ impl Single {
 
 	/// Applies the restructuring algorithm to the given set of nodes starting at the head.
 	/// The end node of the structured branch is returned, if applicable.
-	pub fn restructure<N: NodesMut>(
-		&mut self,
-		nodes: &mut N,
-		set: Slice,
-		head: usize,
-	) -> Option<usize> {
+	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: Slice, head: usize) -> Option<usize> {
 		self.dominator_finder.run(nodes, set, head);
 
 		self.find_branches(nodes, set, head);

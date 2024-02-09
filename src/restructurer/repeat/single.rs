@@ -142,7 +142,7 @@ impl Single {
 
 	/// Applies the restructuring algorithm to the given set of nodes.
 	/// The start node of the structured repetition is returned.
-	pub fn restructure<N: NodesMut>(&mut self, nodes: &mut N, set: Slice) -> usize {
+	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: Slice) -> usize {
 		if let Some(start) = self.find_start_if_structured(nodes, set) {
 			self.synthetics.clear();
 

@@ -40,13 +40,13 @@ impl Bulk {
 	}
 
 	/// Restructures the nodes in the given set.
-	pub fn restructure<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set) {
+	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set) {
 		self.set.clone_from(set);
 
 		while let Some(component) = self.find_next_component(nodes) {
 			self.set.clone_from(&component);
 
-			let start = self.single.restructure(nodes, self.set.as_slice());
+			let start = self.single.run(nodes, self.set.as_slice());
 
 			self.set.remove(start);
 

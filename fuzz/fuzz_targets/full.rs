@@ -10,6 +10,6 @@ fuzz_target!(|list: List| {
 	let mut list = list;
 	let mut set = list.ids();
 
-	repeat::bulk::Bulk::new().restructure(&mut list, &mut set);
-	branch::bulk::Bulk::new().restructure(&mut list, &mut set, 0);
+	repeat::bulk::Bulk::new().run(&mut list, &mut set);
+	branch::bulk::Bulk::new().run(&mut list, &mut set, 0);
 });
