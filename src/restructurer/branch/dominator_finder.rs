@@ -2,61 +2,33 @@
 // "A Simple, Fast Dominance Algorithm",
 //     by Keith D. Cooper, Timothy J. Harvey, and Ken Kennedy
 
-use crate::{
-	collection::{depth_first_searcher::DepthFirstSearcher, set::Slice},
-	control_flow::Nodes,
-};
+use crate::{collection::reverse_post_searcher::ReversePostSearcher, control_flow::Nodes};
 
 #[derive(Default)]
 pub struct DominatorFinder {
 	dominators: Vec<usize>,
-	post_to_id: Vec<usize>,
-	id_to_post: Vec<usize>,
 
-	depth_first_searcher: DepthFirstSearcher,
+	reverse_post_searcher: ReversePostSearcher,
 }
 
 impl DominatorFinder {
 	pub const fn new() -> Self {
 		Self {
 			dominators: Vec::new(),
-			post_to_id: Vec::new(),
-			id_to_post: Vec::new(),
 
-			depth_first_searcher: DepthFirstSearcher::new(),
+			reverse_post_searcher: ReversePostSearcher::new(),
 		}
 	}
 
-	fn initialize_fields<N: Nodes>(&mut self, nodes: &N, set: Slice, start: usize) {
-		let len = set.ones().count();
-		let last = set.ones().max().map_or(0, |id| id + 1);
-
-		assert_ne!(len, 0, "set must contain at least one element");
+	fn fill_dominators(&mut self) {
+		let len = self.reverse_post_searcher.post_to_id().len();
 
 		self.dominators.clear();
 		self.dominators.resize(len, usize::MAX);
 
-		if let Some(entry) = self.dominators.first_mut() {
-			*entry = 0;
-		}
+		let entry = self.dominators.first_mut().expect("at least 1 node");
 
-		self.post_to_id.clear();
-		self.id_to_post.clear();
-		self.id_to_post.resize(last, usize::MAX);
-
-		self.depth_first_searcher.restrict(set.ones());
-		self.depth_first_searcher.run(nodes, start, |id, post| {
-			if !post {
-				return;
-			}
-
-			self.id_to_post[id] = len - self.post_to_id.len() - 1;
-			self.post_to_id.push(id);
-		});
-
-		self.post_to_id.reverse();
-
-		assert_eq!(self.post_to_id.len(), len, "not all nodes were visited");
+		*entry = 0;
 	}
 
 	fn find_intersection(&self, mut id_1: usize, mut id_2: usize) -> usize {
@@ -74,7 +46,7 @@ impl DominatorFinder {
 	}
 
 	fn id_to_post_checked(&self, id: usize) -> Option<usize> {
-		self.id_to_post.get(id).copied()
+		self.reverse_post_searcher.id_to_post().get(id).copied()
 	}
 
 	fn has_any_dominator(&self, index: usize) -> bool {
@@ -96,9 +68,9 @@ impl DominatorFinder {
 		loop {
 			let mut changed = false;
 
-			for &id in &self.post_to_id[1..] {
+			for &id in &self.reverse_post_searcher.post_to_id()[1..] {
 				let dominator = self.find_dominator(nodes, id);
-				let index = self.id_to_post[id];
+				let index = self.reverse_post_searcher.id_to_post()[id];
 
 				if self.dominators[index] != dominator {
 					self.dominators[index] = dominator;
@@ -114,14 +86,20 @@ impl DominatorFinder {
 	}
 
 	pub fn is_dominator_of(&self, dominator: usize, id: usize) -> bool {
-		let dominator = self.id_to_post[dominator];
-		let id = self.id_to_post[id];
+		let dominator = self.reverse_post_searcher.id_to_post()[dominator];
+		let id = self.reverse_post_searcher.id_to_post()[id];
 
 		self.find_intersection(dominator, id) == dominator
 	}
 
-	pub fn run<N: Nodes>(&mut self, nodes: &N, set: Slice, start: usize) {
-		self.initialize_fields(nodes, set, start);
+	pub fn run<N, I>(&mut self, nodes: &N, set: I, start: usize)
+	where
+		N: Nodes,
+		I: IntoIterator<Item = usize>,
+	{
+		self.reverse_post_searcher.run(nodes, set, start);
+
+		self.fill_dominators();
 		self.run_iterations(nodes);
 	}
 }
