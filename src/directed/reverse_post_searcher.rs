@@ -1,4 +1,4 @@
-use crate::control_flow::Nodes;
+use crate::nodes::Successors;
 
 use super::depth_first_searcher::DepthFirstSearcher;
 
@@ -29,7 +29,7 @@ impl ReversePostSearcher {
 		&self.id_to_post
 	}
 
-	fn fill_post_to_id<N: Nodes>(&mut self, nodes: &N, start: usize) {
+	fn fill_post_to_id<N: Successors>(&mut self, nodes: &N, start: usize) {
 		self.post_to_id.clear();
 
 		self.depth_first_searcher.run(nodes, start, |id, post| {
@@ -56,7 +56,7 @@ impl ReversePostSearcher {
 
 	pub fn run<N, I>(&mut self, nodes: &N, set: I, start: usize)
 	where
-		N: Nodes,
+		N: Successors,
 		I: IntoIterator<Item = usize>,
 	{
 		self.depth_first_searcher.restrict(set);

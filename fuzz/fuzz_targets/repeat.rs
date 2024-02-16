@@ -2,7 +2,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use list::List;
-use perfect_reconstructibility::restructurer::repeat;
+use perfect_reconstructibility::structurer::repeat;
 
 mod list;
 
@@ -10,5 +10,5 @@ fuzz_target!(|list: List| {
 	let mut list = list;
 	let mut set = list.ids();
 
-	repeat::bulk::Bulk::new().run(&mut list, &mut set);
+	repeat::Bulk::new().run(&mut list, &mut set);
 });

@@ -1,3 +1,11 @@
+pub trait Predecessors {
+	fn predecessors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
+}
+
+pub trait Successors {
+	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
+}
+
 /// A reserved variable for synthetic control flow nodes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Var {
@@ -6,20 +14,11 @@ pub enum Var {
 	Branch,
 }
 
-/// An immutable control flow graph.
-pub trait Nodes {
-	/// Returns an iterator over the predecessors of the given node.
-	fn predecessors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
-
-	/// Returns an iterator over the successors of the given node.
-	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
-
+/// A control flow graph.
+pub trait Nodes: Predecessors + Successors {
 	/// Returns whether a node has an assignment to a synthetic variable.
 	fn has_assignment(&self, id: usize, var: Var) -> bool;
-}
 
-/// A mutable control flow graph.
-pub trait NodesMut: Nodes {
 	/// Adds a new no-operation node to the graph and returns its index.
 	fn add_no_operation(&mut self) -> usize;
 

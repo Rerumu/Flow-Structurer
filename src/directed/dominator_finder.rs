@@ -2,7 +2,9 @@
 // "A Simple, Fast Dominance Algorithm",
 //     by Keith D. Cooper, Timothy J. Harvey, and Ken Kennedy
 
-use crate::{collection::reverse_post_searcher::ReversePostSearcher, control_flow::Nodes};
+use crate::nodes::{Predecessors, Successors};
+
+use super::reverse_post_searcher::ReversePostSearcher;
 
 #[derive(Default)]
 pub struct DominatorFinder {
@@ -12,6 +14,7 @@ pub struct DominatorFinder {
 }
 
 impl DominatorFinder {
+	#[must_use]
 	pub const fn new() -> Self {
 		Self {
 			dominators: Vec::new(),
@@ -55,7 +58,7 @@ impl DominatorFinder {
 			.map_or(false, |&id| id != usize::MAX)
 	}
 
-	fn find_dominator<N: Nodes>(&self, nodes: &N, id: usize) -> usize {
+	fn find_dominator<N: Predecessors>(&self, nodes: &N, id: usize) -> usize {
 		nodes
 			.predecessors(id)
 			.filter_map(|predecessor| self.id_to_post_checked(predecessor))
@@ -64,7 +67,7 @@ impl DominatorFinder {
 			.expect("node should have a dominator")
 	}
 
-	fn run_iterations<N: Nodes>(&mut self, nodes: &N) {
+	fn run_heuristic<N: Predecessors>(&mut self, nodes: &N) {
 		loop {
 			let mut changed = false;
 
@@ -85,7 +88,8 @@ impl DominatorFinder {
 		}
 	}
 
-	pub fn is_dominator_of(&self, dominator: usize, id: usize) -> bool {
+	#[must_use]
+	pub fn dominates(&self, dominator: usize, id: usize) -> bool {
 		let dominator = self.reverse_post_searcher.id_to_post()[dominator];
 		let id = self.reverse_post_searcher.id_to_post()[id];
 
@@ -94,12 +98,12 @@ impl DominatorFinder {
 
 	pub fn run<N, I>(&mut self, nodes: &N, set: I, start: usize)
 	where
-		N: Nodes,
+		N: Predecessors + Successors,
 		I: IntoIterator<Item = usize>,
 	{
 		self.reverse_post_searcher.run(nodes, set, start);
 
 		self.fill_dominators();
-		self.run_iterations(nodes);
+		self.run_heuristic(nodes);
 	}
 }

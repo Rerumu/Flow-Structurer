@@ -1,6 +1,6 @@
 use crate::{
-	collection::set::Slice,
-	control_flow::{Nodes, NodesMut, Var},
+	nodes::{Nodes, Var},
+	set::Slice,
 };
 
 /// This structure implements a single pass of this algorithm. It assumes that the set
@@ -31,11 +31,11 @@ impl Single {
 		self.point_out.clear();
 
 		for id in set.ones() {
-			if nodes.predecessors(id).any(|id| !set.get(id)) {
+			if nodes.predecessors(id).any(|id| !set[id]) {
 				self.point_in.push(id);
 			}
 
-			if nodes.successors(id).any(|id| !set.get(id)) {
+			if nodes.successors(id).any(|id| !set[id]) {
 				self.point_out.push(id);
 			}
 		}
@@ -45,8 +45,11 @@ impl Single {
 		self.find_ins_and_outs(nodes, set);
 
 		if let &[start] = self.point_in.as_slice() {
+			let mut repetitions = nodes.predecessors(start).filter(|&id| set[id]);
+
 			if self.point_out.len() <= 1
-				&& nodes.predecessors(start).filter(|&id| set.get(id)).count() == 1
+				&& repetitions.next().is_some()
+				&& repetitions.next().is_none()
 			{
 				return Some(start);
 			}
@@ -55,14 +58,11 @@ impl Single {
 		None
 	}
 
-	fn restructure_continues<N: NodesMut>(&mut self, nodes: &mut N, set: Slice, latch: usize) {
+	fn restructure_continues<N: Nodes>(&mut self, nodes: &mut N, set: Slice, latch: usize) {
 		// Predecessor -> Entry
 		// Predecessor -> Destination -> Repetition -> Latch -> Selection -> Entry
 		for (index, &entry) in self.point_in.iter().enumerate() {
-			let predecessors: Vec<_> = nodes
-				.predecessors(entry)
-				.filter(|&id| set.get(id))
-				.collect();
+			let predecessors: Vec<_> = nodes.predecessors(entry).filter(|&id| set[id]).collect();
 
 			for predecessor in predecessors {
 				let destination = nodes.add_variable(Var::Destination, index);
@@ -78,7 +78,7 @@ impl Single {
 		}
 	}
 
-	fn restructure_start<N: NodesMut>(&mut self, nodes: &mut N, set: Slice) -> usize {
+	fn restructure_start<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
 		let selection = nodes.add_selection(Var::Destination);
 
 		self.synthetics.push(selection);
@@ -86,10 +86,7 @@ impl Single {
 		// Predecessor -> Entry
 		// Predecessor -> Destination -> Selection -> Entry
 		for (index, &entry) in self.point_in.iter().enumerate() {
-			let predecessors: Vec<_> = nodes
-				.predecessors(entry)
-				.filter(|&id| !set.get(id))
-				.collect();
+			let predecessors: Vec<_> = nodes.predecessors(entry).filter(|&id| !set[id]).collect();
 
 			for predecessor in predecessors {
 				let destination = nodes.add_variable(Var::Destination, index);
@@ -106,7 +103,7 @@ impl Single {
 		selection
 	}
 
-	fn restructure_end<N: NodesMut>(&mut self, nodes: &mut N, set: Slice, latch: usize) -> usize {
+	fn restructure_end<N: Nodes>(&mut self, nodes: &mut N, set: Slice, latch: usize) -> usize {
 		let selection = nodes.add_selection(Var::Destination);
 
 		self.synthetics.push(selection);
@@ -114,7 +111,7 @@ impl Single {
 		// Exit -> Successor
 		// Exit -> Destination -> Repetition -> Latch -> Selection -> Successor
 		for (index, &exit) in self.point_out.iter().enumerate() {
-			let successors: Vec<_> = nodes.successors(exit).filter(|&id| !set.get(id)).collect();
+			let successors: Vec<_> = nodes.successors(exit).filter(|&id| !set[id]).collect();
 
 			for successor in successors {
 				let destination = nodes.add_variable(Var::Destination, index);
@@ -142,7 +139,7 @@ impl Single {
 
 	/// Applies the restructuring algorithm to the given set of nodes.
 	/// The start node of the structured repetition is returned.
-	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: Slice) -> usize {
+	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
 		if let Some(start) = self.find_start_if_structured(nodes, set) {
 			self.synthetics.clear();
 

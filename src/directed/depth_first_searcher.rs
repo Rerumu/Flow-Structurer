@@ -1,4 +1,4 @@
-use crate::{collection::set::Set, control_flow::Nodes};
+use crate::{nodes::Successors, set::Set};
 
 struct Item {
 	id: usize,
@@ -8,7 +8,7 @@ struct Item {
 #[derive(Default)]
 pub struct DepthFirstSearcher {
 	items: Vec<Item>,
-	wait: Set,
+	unseen: Set,
 
 	vec_pooled: Vec<Vec<usize>>,
 }
@@ -18,17 +18,17 @@ impl DepthFirstSearcher {
 	pub const fn new() -> Self {
 		Self {
 			items: Vec::new(),
-			wait: Set::new(),
+			unseen: Set::new(),
 			vec_pooled: Vec::new(),
 		}
 	}
 
 	fn queue_item<N, H>(&mut self, nodes: &N, id: usize, mut handler: H)
 	where
-		N: Nodes,
+		N: Successors,
 		H: FnMut(usize, bool),
 	{
-		if !self.wait.remove(id) {
+		if !self.unseen.remove(id) {
 			return;
 		}
 
@@ -43,18 +43,18 @@ impl DepthFirstSearcher {
 	}
 
 	#[must_use]
-	pub const fn wait(&self) -> &Set {
-		&self.wait
+	pub const fn unseen(&self) -> &Set {
+		&self.unseen
 	}
 
 	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
-		self.wait.clear();
-		self.wait.extend(set);
+		self.unseen.clear();
+		self.unseen.extend(set);
 	}
 
 	pub fn run<N, H>(&mut self, nodes: &N, start: usize, mut handler: H)
 	where
-		N: Nodes,
+		N: Successors,
 		H: FnMut(usize, bool),
 	{
 		self.queue_item(nodes, start, &mut handler);

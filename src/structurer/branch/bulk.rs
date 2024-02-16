@@ -1,7 +1,4 @@
-use crate::{
-	collection::set::Set,
-	control_flow::{Nodes, NodesMut},
-};
+use crate::{nodes::Nodes, set::Set};
 
 use super::single::{Branch, Single};
 
@@ -29,7 +26,7 @@ impl Bulk {
 
 	fn find_branch_head<N: Nodes>(&mut self, nodes: &N, mut start: usize) -> Option<usize> {
 		loop {
-			if nodes.successors(start).any(|id| !self.set.get(id)) {
+			if nodes.successors(start).any(|id| !self.set[id]) {
 				return None;
 			}
 
@@ -46,7 +43,7 @@ impl Bulk {
 		}
 	}
 
-	fn restructure_branch<N: NodesMut>(&mut self, nodes: &mut N, head: usize) {
+	fn restructure_branch<N: Nodes>(&mut self, nodes: &mut N, head: usize) {
 		if let Some(exit) = self.single.run(nodes, self.set.as_slice(), head) {
 			let tail = std::mem::take(self.single.tail_mut());
 
@@ -60,7 +57,7 @@ impl Bulk {
 	}
 
 	/// Restructures the nodes in the given set.
-	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set, mut start: usize) {
+	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set, mut start: usize) {
 		self.set.clone_from(set);
 
 		loop {

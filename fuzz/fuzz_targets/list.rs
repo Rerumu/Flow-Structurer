@@ -1,7 +1,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use perfect_reconstructibility::{
-	collection::set::Set,
-	control_flow::{Nodes, NodesMut, Var},
+	nodes::{Nodes, Predecessors, Successors, Var},
+	set::Set,
 };
 
 pub enum Instruction {
@@ -94,15 +94,19 @@ impl List {
 	}
 }
 
-impl Nodes for List {
+impl Predecessors for List {
 	fn predecessors(&self, id: usize) -> impl Iterator<Item = usize> + '_ {
 		self.nodes[id].predecessors.iter().copied()
 	}
+}
 
+impl Successors for List {
 	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_ {
 		self.nodes[id].successors.iter().copied()
 	}
+}
 
+impl Nodes for List {
 	fn has_assignment(&self, id: usize, var: Var) -> bool {
 		if let Instruction::SetVariable { var: old, .. } = self.nodes[id].instruction {
 			old == var
@@ -110,9 +114,7 @@ impl Nodes for List {
 			false
 		}
 	}
-}
 
-impl NodesMut for List {
 	fn add_no_operation(&mut self) -> usize {
 		self.add_instruction(Instruction::NoOperation)
 	}

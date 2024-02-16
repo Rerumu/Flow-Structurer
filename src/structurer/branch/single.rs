@@ -1,9 +1,8 @@
 use crate::{
-	collection::set::{Set, Slice},
-	control_flow::{Nodes, NodesMut, Var},
+	directed::dominator_finder::DominatorFinder,
+	nodes::{Nodes, Var},
+	set::{Set, Slice},
 };
-
-use super::dominator_finder::DominatorFinder;
 
 pub struct Branch {
 	pub set: Set,
@@ -46,8 +45,8 @@ impl Single {
 		for successor in nodes.successors(head) {
 			let mut predecessors = nodes
 				.predecessors(successor)
-				.filter(|&id| set.get(id))
-				.filter(|&id| !self.dominator_finder.is_dominator_of(successor, id));
+				.filter(|&id| set[id])
+				.filter(|&id| !self.dominator_finder.dominates(successor, id));
 
 			if predecessors.next().is_some() && predecessors.next().is_none() {
 				self.branches.push(Branch {
@@ -63,7 +62,7 @@ impl Single {
 
 		'dominated: for id in set.ones() {
 			for Branch { set, start } in &mut self.branches {
-				if self.dominator_finder.is_dominator_of(*start, id) {
+				if self.dominator_finder.dominates(*start, id) {
 					set.insert(id);
 
 					continue 'dominated;
@@ -80,7 +79,7 @@ impl Single {
 		self.continuations.iter().any(|&continuation| {
 			nodes
 				.predecessors(continuation)
-				.any(|id| self.tail.get(id) && nodes.has_assignment(id, Var::Branch))
+				.any(|id| self.tail[id] && nodes.has_assignment(id, Var::Branch))
 		})
 	}
 
@@ -121,30 +120,30 @@ impl Single {
 
 	fn find_continuations<N: Nodes>(&mut self, nodes: &N, set: Slice) {
 		self.continuations.clear();
-		self.continuations.extend(self.tail.ones().filter(|&tail| {
-			nodes
-				.predecessors(tail)
-				.any(|id| !self.tail.get(id) && set.get(id))
-		}));
+		self.continuations.extend(
+			self.tail
+				.ones()
+				.filter(|&tail| nodes.predecessors(tail).any(|id| !self.tail[id] && set[id])),
+		);
 	}
 
 	fn patch_single_continuation(&mut self, tail: usize) {
 		for Branch { set, start } in &mut self.branches {
-			if self.dominator_finder.is_dominator_of(*start, tail) {
+			if self.dominator_finder.dominates(*start, tail) {
 				set.insert(tail);
 			}
 		}
 	}
 
-	fn restructure_full<N: NodesMut>(&mut self, nodes: &mut N, items: &mut Set, exit: usize) {
+	fn restructure_full<N: Nodes>(&mut self, nodes: &mut N, items: &mut Set, exit: usize) {
 		let mut continuations = Vec::new();
 
 		// Find all tail connections
 		for &tail in &self.continuations {
 			continuations.extend(
-				nodes.predecessors(tail).filter_map(|predecessor| {
-					items.get(predecessor).then_some((predecessor, tail))
-				}),
+				nodes
+					.predecessors(tail)
+					.filter_map(|predecessor| items[predecessor].then_some((predecessor, tail))),
 			);
 		}
 
@@ -177,7 +176,7 @@ impl Single {
 		}
 	}
 
-	fn restructure_fulls<N: NodesMut>(&mut self, nodes: &mut N, exit: usize) {
+	fn restructure_fulls<N: Nodes>(&mut self, nodes: &mut N, exit: usize) {
 		let mut branches = std::mem::take(&mut self.branches);
 
 		for Branch { set, .. } in &mut branches {
@@ -187,7 +186,7 @@ impl Single {
 		self.branches = branches;
 	}
 
-	fn restructure_empties<N: NodesMut>(&mut self, nodes: &mut N, head: usize, exit: usize) {
+	fn restructure_empties<N: Nodes>(&mut self, nodes: &mut N, head: usize, exit: usize) {
 		for (index, &tail) in self.continuations.iter().enumerate() {
 			let redirects = nodes.predecessors(tail).filter(|&id| id == head).count();
 
@@ -202,7 +201,7 @@ impl Single {
 		}
 	}
 
-	fn restructure_branches<N: NodesMut>(&mut self, nodes: &mut N, head: usize) -> usize {
+	fn restructure_branches<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
 		let exit = nodes.add_selection(Var::Branch);
 
 		self.tail.insert(exit);
@@ -236,7 +235,7 @@ impl Single {
 
 	/// Applies the restructuring algorithm to the given set of nodes starting at the head.
 	/// The end node of the structured branch is returned, if applicable.
-	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: Slice, head: usize) -> Option<usize> {
+	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: Slice, head: usize) -> Option<usize> {
 		self.dominator_finder.run(nodes, set.ones(), head);
 
 		self.find_branches(nodes, set, head);

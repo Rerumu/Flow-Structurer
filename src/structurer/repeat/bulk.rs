@@ -1,9 +1,6 @@
-use crate::{
-	collection::set::Set,
-	control_flow::{Nodes, NodesMut},
-};
+use crate::{directed::strongly_connected_finder::StronglyConnectedFinder, nodes::Nodes, set::Set};
 
-use super::{single::Single, strongly_connected_finder::StronglyConnectedFinder};
+use super::single::Single;
 
 /// This structure implements a bulk recursive algorithm to restructure a set of nodes.
 /// More details are provided in [`Single`].
@@ -40,7 +37,7 @@ impl Bulk {
 	}
 
 	/// Restructures the nodes in the given set.
-	pub fn run<N: NodesMut>(&mut self, nodes: &mut N, set: &mut Set) {
+	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set) {
 		self.set.clone_from(set);
 
 		while let Some(component) = self.find_next_component(nodes) {

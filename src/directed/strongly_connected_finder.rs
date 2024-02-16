@@ -2,13 +2,9 @@
 // "Path-based depth-first search for strong and biconnected components",
 //     by Harold N. Gabow
 
-use crate::{
-	collection::{
-		depth_first_searcher::DepthFirstSearcher,
-		set::{Set, Slice},
-	},
-	control_flow::Nodes,
-};
+use crate::{nodes::Successors, set::Set};
+
+use super::depth_first_searcher::DepthFirstSearcher;
 
 #[derive(Default)]
 pub struct StronglyConnectedFinder {
@@ -20,6 +16,7 @@ pub struct StronglyConnectedFinder {
 }
 
 impl StronglyConnectedFinder {
+	#[must_use]
 	pub const fn new() -> Self {
 		Self {
 			names: Vec::new(),
@@ -30,16 +27,19 @@ impl StronglyConnectedFinder {
 		}
 	}
 
-	fn initialize_fields(&mut self, set: Slice) {
-		let last = set.ones().max().map_or(0, |index| index + 1);
+	fn fill_names(&mut self) {
+		let last = self
+			.depth_first_searcher
+			.unseen()
+			.ones()
+			.max()
+			.map_or(0, |index| index + 1);
 
 		self.names.clear();
 		self.names.resize(last, usize::MAX);
-
-		self.depth_first_searcher.restrict(set.ones());
 	}
 
-	fn on_pre_order<N: Nodes>(&mut self, nodes: &N, id: usize) {
+	fn on_pre_order<N: Successors>(&mut self, nodes: &N, id: usize) {
 		let index = self.path.len();
 
 		self.names[id] = index;
@@ -74,14 +74,15 @@ impl StronglyConnectedFinder {
 		(result.len() > 1).then(|| result.collect())
 	}
 
-	fn run_search<N, H>(&mut self, nodes: &N, set: Slice, mut handler: H)
+	fn run_search<N, H, S>(&mut self, nodes: &N, set: S, mut handler: H)
 	where
-		N: Nodes,
+		N: Successors,
 		H: FnMut(Set),
+		S: IntoIterator<Item = usize>,
 	{
-		let mut depth_first_searcher = std::mem::take(&mut self.depth_first_searcher);
+		let mut depth_first_searcher = core::mem::take(&mut self.depth_first_searcher);
 
-		for id in set.ones() {
+		for id in set {
 			depth_first_searcher.run(nodes, id, |id, post| {
 				if post {
 					if let Some(component) = self.on_post_order(id) {
@@ -96,12 +97,15 @@ impl StronglyConnectedFinder {
 		self.depth_first_searcher = depth_first_searcher;
 	}
 
-	pub fn run<N, H>(&mut self, nodes: &N, set: Slice, handler: H)
+	pub fn run<N, H, S>(&mut self, nodes: &N, set: S, handler: H)
 	where
-		N: Nodes,
+		N: Successors,
 		H: FnMut(Set),
+		S: IntoIterator<Item = usize> + Clone,
 	{
-		self.initialize_fields(set);
+		self.depth_first_searcher.restrict(set.clone());
+
+		self.fill_names();
 		self.run_search(nodes, set, handler);
 	}
 }
