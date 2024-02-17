@@ -29,8 +29,13 @@ impl ReversePostSearcher {
 		&self.id_to_post
 	}
 
-	fn fill_post_to_id<N: Successors>(&mut self, nodes: &N, start: usize) {
+	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
+		self.depth_first_searcher.restrict(set);
 		self.post_to_id.clear();
+	}
+
+	pub fn follow<N: Successors>(&mut self, nodes: &N, start: usize) {
+		let base = self.post_to_id.len();
 
 		self.depth_first_searcher.run(nodes, start, |id, post| {
 			if !post {
@@ -40,10 +45,10 @@ impl ReversePostSearcher {
 			self.post_to_id.push(id);
 		});
 
-		self.post_to_id.reverse();
+		self.post_to_id[base..].reverse();
 	}
 
-	fn fill_id_to_post(&mut self) {
+	pub fn finalize(&mut self) {
 		let last = self.post_to_id.iter().max().map_or(0, |id| id + 1);
 
 		self.id_to_post.clear();
@@ -52,16 +57,5 @@ impl ReversePostSearcher {
 		for (index, &id) in self.post_to_id.iter().enumerate() {
 			self.id_to_post[id] = index;
 		}
-	}
-
-	pub fn run<N, I>(&mut self, nodes: &N, set: I, start: usize)
-	where
-		N: Successors,
-		I: IntoIterator<Item = usize>,
-	{
-		self.depth_first_searcher.restrict(set);
-
-		self.fill_post_to_id(nodes, start);
-		self.fill_id_to_post();
 	}
 }

@@ -101,7 +101,9 @@ impl DominatorFinder {
 		N: Predecessors + Successors,
 		I: IntoIterator<Item = usize>,
 	{
-		self.reverse_post_searcher.run(nodes, set, start);
+		self.reverse_post_searcher.restrict(set);
+		self.reverse_post_searcher.follow(nodes, start);
+		self.reverse_post_searcher.finalize();
 
 		self.fill_dominators();
 		self.run_heuristic(nodes);
