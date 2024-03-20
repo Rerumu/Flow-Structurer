@@ -7,7 +7,7 @@ pub trait Successors {
 }
 
 /// A reserved variable for synthetic control flow nodes.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Var {
 	Destination,
 	Repetition,
