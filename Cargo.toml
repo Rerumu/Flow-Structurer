@@ -2,3 +2,7 @@
 name = "perfect-reconstructibility"
 version = "1.0.0"
 edition = "2021"
+
+[dependencies.set]
+git = "https://github.com/Rerumu/Set.git"
+rev = "492b2f8"
