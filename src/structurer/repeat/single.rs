@@ -47,11 +47,12 @@ impl Single {
 		if let &[start] = self.point_in.as_slice() {
 			let mut repetitions = nodes.predecessors(start).filter(|&id| set[id]);
 
-			if self.point_out.len() <= 1
-				&& repetitions.next().is_some()
-				&& repetitions.next().is_none()
-			{
-				return Some(start);
+			if let Some(repeat) = repetitions.next() {
+				if repetitions.next().is_none()
+					&& (self.point_out.is_empty() || self.point_out == [repeat])
+				{
+					return Some(start);
+				}
 			}
 		}
 
