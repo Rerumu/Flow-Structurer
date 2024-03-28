@@ -9,6 +9,7 @@ pub struct Bulk {
 	single: Single,
 
 	set: Set,
+	sets: Vec<Set>,
 	branches: Vec<Branch>,
 }
 
@@ -20,6 +21,7 @@ impl Bulk {
 			single: Single::new(),
 
 			set: Set::new(),
+			sets: Vec::new(),
 			branches: Vec::new(),
 		}
 	}
@@ -44,8 +46,12 @@ impl Bulk {
 	}
 
 	fn restructure_branch<N: Nodes>(&mut self, nodes: &mut N, head: usize) {
-		if let Some(exit) = self.single.run(nodes, self.set.as_slice(), head) {
-			let tail = std::mem::take(self.single.tail_mut());
+		if let Some(exit) = self
+			.single
+			.run(nodes, self.set.as_slice(), head, &mut self.sets)
+		{
+			let tail =
+				std::mem::replace(self.single.tail_mut(), self.sets.pop().unwrap_or_default());
 
 			self.branches.push(Branch {
 				set: tail,
@@ -68,9 +74,11 @@ impl Bulk {
 			}
 
 			if let Some(branch) = self.branches.pop() {
-				self.set.clone_from(&branch.set);
+				let old = std::mem::replace(&mut self.set, branch.set);
 
 				start = branch.start;
+
+				self.sets.push(old);
 			} else {
 				break;
 			}

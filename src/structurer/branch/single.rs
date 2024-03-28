@@ -36,7 +36,7 @@ impl Single {
 		}
 	}
 
-	fn find_branches<N: Nodes>(&mut self, nodes: &N, set: Slice, head: usize) {
+	fn find_branches<N: Nodes>(&mut self, nodes: &N, set: Slice, head: usize, sets: &mut Vec<Set>) {
 		let successors = nodes.successors(head).count();
 
 		self.branches.clear();
@@ -49,8 +49,12 @@ impl Single {
 				.filter(|&id| !self.dominator_finder.dominates(successor, id));
 
 			if predecessors.next().is_some() && predecessors.next().is_none() {
+				let mut set = sets.pop().unwrap_or_default();
+
+				set.clear();
+
 				self.branches.push(Branch {
-					set: Set::new(),
+					set,
 					start: successor,
 				});
 			};
@@ -235,10 +239,16 @@ impl Single {
 
 	/// Applies the restructuring algorithm to the given set of nodes starting at the head.
 	/// The end node of the structured branch is returned, if applicable.
-	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: Slice, head: usize) -> Option<usize> {
+	pub fn run<N: Nodes>(
+		&mut self,
+		nodes: &mut N,
+		set: Slice,
+		head: usize,
+		sets: &mut Vec<Set>,
+	) -> Option<usize> {
 		self.dominator_finder.run(nodes, set.ones(), head);
 
-		self.find_branches(nodes, set, head);
+		self.find_branches(nodes, set, head, sets);
 		self.find_elements(set, head);
 		self.find_continuations(nodes, set);
 
