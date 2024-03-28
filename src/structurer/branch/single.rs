@@ -115,7 +115,7 @@ impl Single {
 		self.continuations = continuations;
 
 		self.branches
-			.retain(|Branch { set, .. }| set.ones().next().is_some());
+			.retain(|Branch { set, .. }| set.ones().len() != 0);
 	}
 
 	fn find_continuations<N: Nodes>(&mut self, nodes: &N, set: Slice) {
