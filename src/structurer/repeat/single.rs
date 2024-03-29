@@ -41,9 +41,7 @@ impl Single {
 		}
 	}
 
-	fn find_start_if_structured<N: Nodes>(&mut self, nodes: &N, set: Slice) -> Option<usize> {
-		self.find_ins_and_outs(nodes, set);
-
+	fn find_start_if_structured<N: Nodes>(&self, nodes: &N, set: Slice) -> Option<usize> {
 		if let &[start] = self.point_in.as_slice() {
 			let mut repetitions = nodes.predecessors(start).filter(|&id| set[id]);
 
@@ -141,6 +139,8 @@ impl Single {
 	/// Applies the restructuring algorithm to the given set of nodes.
 	/// The start node of the structured repetition is returned.
 	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
+		self.find_ins_and_outs(nodes, set);
+
 		if let Some(start) = self.find_start_if_structured(nodes, set) {
 			self.synthetics.clear();
 
