@@ -1,0 +1,8 @@
+[package]
+name = "flow-structurer"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies.set]
+git = "https://github.com/Rerumu/Set.git"
+rev = "3cdbedd"
