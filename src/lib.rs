@@ -5,5 +5,6 @@
 
 pub mod nodes;
 pub mod pass;
+pub mod repeat;
 
 pub use set;
