@@ -1,0 +1,57 @@
+[package]
+name = "flow-structurer-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = "1.3.2"
+libfuzzer-sys = "0.4.7"
+
+[dependencies.flow-structurer]
+path = ".."
+
+[[bin]]
+name = "full_checked"
+path = "fuzz_targets/full_checked.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "full_unchecked"
+path = "fuzz_targets/full_unchecked.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "branch_checked"
+path = "fuzz_targets/branch_checked.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "repeat_checked"
+path = "fuzz_targets/repeat_checked.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "branch_unchecked"
+path = "fuzz_targets/branch_unchecked.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "repeat_unchecked"
+path = "fuzz_targets/repeat_unchecked.rs"
+test = false
+doc = false
+bench = false
