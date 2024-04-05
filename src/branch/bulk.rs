@@ -10,6 +10,7 @@ use super::single::{Branch, Single};
 /// More details are provided in [`Single`].
 pub struct Bulk {
 	branches: Vec<Branch>,
+	sets: Vec<Set>,
 
 	single: Single,
 	dominator_finder: DominatorFinder,
@@ -21,6 +22,7 @@ impl Bulk {
 	pub const fn new() -> Self {
 		Self {
 			branches: Vec::new(),
+			sets: Vec::new(),
 
 			single: Single::new(),
 			dominator_finder: DominatorFinder::new(),
@@ -43,10 +45,20 @@ impl Bulk {
 		}
 	}
 
-	fn process_branch<N: Nodes>(&mut self, nodes: &mut N, set: Slice, start: usize) {
-		let start = self.single.run(nodes, set, start, &self.dominator_finder);
+	fn set_start(&mut self, root: &Set, start: usize) {
+		let mut set = self.sets.pop().unwrap_or_default();
 
-		let set = std::mem::take(self.single.tail_mut());
+		set.clone_from(root);
+
+		self.branches.push(Branch { start, set });
+	}
+
+	fn process_branch<N: Nodes>(&mut self, nodes: &mut N, set: Slice, start: usize) {
+		let start = self
+			.single
+			.run(nodes, &mut self.sets, set, start, &self.dominator_finder);
+
+		let set = std::mem::replace(self.single.tail_mut(), self.sets.pop().unwrap_or_default());
 
 		self.branches.push(Branch { start, set });
 		self.branches.append(self.single.branches_mut());
@@ -54,10 +66,7 @@ impl Bulk {
 
 	/// Restructures the nodes in the given set.
 	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set, start: usize) {
-		self.branches.push(Branch {
-			start,
-			set: set.clone(),
-		});
+		self.set_start(set, start);
 
 		while let Some(mut child) = self.branches.pop() {
 			if let Some(start) = Self::find_head(nodes, &mut child.set, child.start) {
@@ -67,6 +76,8 @@ impl Bulk {
 
 				set.extend(self.single.additional().iter().copied());
 			}
+
+			self.sets.push(child.set);
 		}
 	}
 }

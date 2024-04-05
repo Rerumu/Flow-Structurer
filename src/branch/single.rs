@@ -69,10 +69,12 @@ impl Single {
 	fn find_destinations<N: Nodes>(
 		&mut self,
 		nodes: &mut N,
+		sets: &mut Vec<Set>,
 		head: usize,
 		dominator_finder: &DominatorFinder,
 	) {
-		self.branches.clear();
+		sets.extend(self.branches.drain(..).map(|Branch { set, .. }| set));
+
 		self.temporary.clear();
 		self.temporary.extend(nodes.successors(head));
 
@@ -85,10 +87,11 @@ impl Single {
 
 				self.additional.push(dummy);
 			} else {
-				self.branches.push(Branch {
-					start,
-					set: Set::new(),
-				});
+				let mut set = sets.pop().unwrap_or_default();
+
+				set.clear();
+
+				self.branches.push(Branch { start, set });
 			}
 		}
 
@@ -214,13 +217,14 @@ impl Single {
 	pub fn run<N: Nodes>(
 		&mut self,
 		nodes: &mut N,
+		sets: &mut Vec<Set>,
 		set: Slice,
 		head: usize,
 		dominator_finder: &DominatorFinder,
 	) -> usize {
 		self.additional.clear();
 
-		self.find_destinations(nodes, head, dominator_finder);
+		self.find_destinations(nodes, sets, head, dominator_finder);
 		self.find_sets(set, head, dominator_finder);
 		self.find_continuations(nodes, set);
 
