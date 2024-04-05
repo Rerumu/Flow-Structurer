@@ -10,6 +10,7 @@ use super::single::Single;
 /// More details are provided in [`Single`].
 pub struct Bulk {
 	found: Vec<Set>,
+	sets: Vec<Set>,
 
 	single: Single,
 	strongly_connected_finder: StronglyConnectedFinder,
@@ -21,13 +22,14 @@ impl Bulk {
 	pub const fn new() -> Self {
 		Self {
 			found: Vec::new(),
+			sets: Vec::new(),
 
 			single: Single::new(),
 			strongly_connected_finder: StronglyConnectedFinder::new(),
 		}
 	}
 
-	fn find_children<N: Successors>(&mut self, nodes: &N, set: Slice) {
+	fn find_strongly_connected<N: Successors>(&mut self, nodes: &N, set: Slice) {
 		self.strongly_connected_finder.run(nodes, set, |list| {
 			let repeats = if let &[first] = list {
 				nodes.successors(first).any(|id| id == first)
@@ -36,23 +38,30 @@ impl Bulk {
 			};
 
 			if repeats {
-				self.found.push(list.iter().copied().collect());
+				let mut set = self.sets.pop().unwrap_or_default();
+
+				set.clear();
+				set.extend(list.iter().copied());
+
+				self.found.push(set);
 			}
 		});
 	}
 
 	/// Restructures the nodes in the given set.
 	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set) {
-		self.find_children(nodes, set.as_slice());
+		self.find_strongly_connected(nodes, set.as_slice());
 
 		while let Some(mut child) = self.found.pop() {
 			let start = self.single.run(nodes, child.as_slice());
 
-			set.extend(self.single.additional().iter().copied());
-
 			child.remove(start);
 
-			self.find_children(nodes, child.as_slice());
+			set.extend(self.single.additional().iter().copied());
+
+			self.find_strongly_connected(nodes, child.as_slice());
+
+			self.sets.push(child);
 		}
 	}
 }
