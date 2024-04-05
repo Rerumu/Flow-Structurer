@@ -1,2 +1,4 @@
-pub mod bulk;
-pub mod single;
+mod bulk;
+mod single;
+
+pub use bulk::Bulk as Branch;
