@@ -2,15 +2,15 @@ use crate::{nodes::Successors, set::Set};
 
 struct Item {
 	id: usize,
-	successors: Vec<usize>,
+	successors: std::ops::Range<usize>,
 }
 
 #[derive(Default)]
 pub struct DepthFirstSearcher {
 	items: Vec<Item>,
-	unseen: Set,
+	set: Set,
 
-	vecs_usize: Vec<Vec<usize>>,
+	successors: Vec<usize>,
 }
 
 impl DepthFirstSearcher {
@@ -18,9 +18,9 @@ impl DepthFirstSearcher {
 	pub const fn new() -> Self {
 		Self {
 			items: Vec::new(),
-			unseen: Set::new(),
+			set: Set::new(),
 
-			vecs_usize: Vec::new(),
+			successors: Vec::new(),
 		}
 	}
 
@@ -29,28 +29,30 @@ impl DepthFirstSearcher {
 		N: Successors,
 		H: FnMut(usize, bool),
 	{
-		if !self.unseen.remove(id) {
+		if !self.set.remove(id) {
 			return;
 		}
 
-		let mut successors = self.vecs_usize.pop().unwrap_or_default();
+		let start = self.successors.len();
 
-		successors.extend(nodes.successors(id));
-		successors.reverse();
+		self.successors.extend(nodes.successors(id));
 
-		self.items.push(Item { id, successors });
+		self.items.push(Item {
+			id,
+			successors: start..self.successors.len(),
+		});
 
 		handler(id, false);
 	}
 
 	#[must_use]
-	pub const fn unseen(&self) -> &Set {
-		&self.unseen
+	pub const fn set(&self) -> &Set {
+		&self.set
 	}
 
 	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
-		self.unseen.clear();
-		self.unseen.extend(set);
+		self.set.clear();
+		self.set.extend(set);
 	}
 
 	pub fn run<N, H>(&mut self, nodes: &N, start: usize, mut handler: H)
@@ -61,14 +63,14 @@ impl DepthFirstSearcher {
 		self.queue_item(nodes, start, &mut handler);
 
 		while let Some(mut item) = self.items.pop() {
-			if let Some(successor) = item.successors.pop() {
+			if let Some(successor) = item.successors.next_back() {
 				self.items.push(item);
 
-				self.queue_item(nodes, successor, &mut handler);
+				self.queue_item(nodes, self.successors[successor], &mut handler);
 			} else {
 				handler(item.id, true);
 
-				self.vecs_usize.push(item.successors);
+				self.successors.truncate(item.successors.start);
 			}
 		}
 	}

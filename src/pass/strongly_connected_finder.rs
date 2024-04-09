@@ -30,7 +30,7 @@ impl StronglyConnectedFinder {
 	fn fill_names(&mut self) {
 		let last = self
 			.depth_first_searcher
-			.unseen()
+			.set()
 			.ones()
 			.max()
 			.map_or(0, |index| index + 1);
