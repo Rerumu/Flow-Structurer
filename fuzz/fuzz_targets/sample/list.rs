@@ -129,6 +129,10 @@ impl Successors for List {
 }
 
 impl Nodes for List {
+	fn has_assignment(&self, id: usize, var: Var) -> bool {
+		matches!(self.nodes[id].statement, Statement::Assignment { var: other, .. } if other == var)
+	}
+
 	fn add_no_operation(&mut self) -> usize {
 		self.add_statement(Statement::NoOperation)
 	}

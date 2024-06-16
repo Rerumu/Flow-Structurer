@@ -16,6 +16,9 @@ pub enum Var {
 
 /// A view into a control flow graph.
 pub trait Nodes: Predecessors + Successors {
+	/// Returns whether the node has an assignment to a variable.
+	fn has_assignment(&self, id: usize, var: Var) -> bool;
+
 	/// Adds a new no-operation node to the graph and returns its index.
 	fn add_no_operation(&mut self) -> usize;
 
