@@ -29,7 +29,7 @@ impl DepthFirstSearcher {
 		N: Successors,
 		H: FnMut(usize, bool),
 	{
-		if !self.set.remove(id) {
+		if !self.set.remove(id).unwrap_or(false) {
 			return;
 		}
 

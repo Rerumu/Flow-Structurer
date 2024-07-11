@@ -32,7 +32,10 @@ impl Bulk {
 	fn find_head<N: Successors>(nodes: &N, set: &mut Set, mut start: usize) -> Option<usize> {
 		loop {
 			// We ignore loops, either self loops or a successor that was already visited.
-			let mut successors = nodes.successors(start).filter(|&id| start != id && set[id]);
+			let mut successors = nodes
+				.successors(start)
+				.filter(|&id| start != id && set.contains(id));
+
 			let successor = successors.next()?;
 
 			if successors.next().is_some() {
@@ -70,7 +73,8 @@ impl Bulk {
 
 		while let Some(mut child) = self.branches.pop() {
 			if let Some(start) = Self::find_head(nodes, &mut child.set, child.start) {
-				self.dominator_finder.run(nodes, child.set.ones(), start);
+				self.dominator_finder
+					.run(nodes, child.set.ascending(), start);
 
 				self.process_branch(nodes, child.set.as_slice(), start);
 

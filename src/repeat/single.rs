@@ -38,12 +38,12 @@ impl Single {
 		self.exits.clear();
 
 		for id in set {
-			if nodes.predecessors(id).any(|id| !set[id]) {
+			if nodes.predecessors(id).any(|id| !set.contains(id)) {
 				self.entries.push(id);
 			}
 
 			self.exits
-				.extend(nodes.successors(id).filter(|&id| !set[id]));
+				.extend(nodes.successors(id).filter(|&id| !set.contains(id)));
 		}
 
 		self.exits.sort_unstable();
@@ -90,7 +90,7 @@ impl Single {
 		for (index, &exit) in self.exits.iter().enumerate() {
 			self.temporaries.clear();
 			self.temporaries
-				.extend(nodes.predecessors(exit).filter(|&id| set[id]));
+				.extend(nodes.predecessors(exit).filter(|&id| set.contains(id)));
 
 			for &predecessor in &self.temporaries {
 				let branch = nodes.add_assignment(Var::C, index);
@@ -118,7 +118,7 @@ impl Single {
 	fn in_set_or_inserted<N: Predecessors>(nodes: &N, set: Slice, id: usize) -> bool {
 		// Since our new nodes are not automatically inserted into `set`,
 		// we must also check that our predecessors are in the set just in case.
-		set[id] || nodes.predecessors(id).any(|id| set[id])
+		set.contains(id) || nodes.predecessors(id).any(|id| set.contains(id))
 	}
 
 	fn in_set_acyclic<N: Predecessors>(nodes: &N, set: Slice, parent: usize, id: usize) -> bool {

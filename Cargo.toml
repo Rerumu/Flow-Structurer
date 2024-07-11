@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies.set]
 git = "https://github.com/Rerumu/Set.git"
-rev = "3cdbedd"
+rev = "e63416d"

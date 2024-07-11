@@ -93,13 +93,13 @@ impl Single {
 		'dominated: for id in set {
 			for Branch { start, set } in &mut self.branches {
 				if dominator_finder.dominates(*start, id).unwrap_or(false) {
-					set.insert(id);
+					set.grow_insert(id);
 
 					continue 'dominated;
 				}
 			}
 
-			self.tail.insert(id);
+			self.tail.grow_insert(id);
 		}
 
 		self.tail.remove(head);
@@ -107,8 +107,10 @@ impl Single {
 
 	// We must ensure either all assignments are in the tail or none are.
 	fn has_orphan_assignments<N: Nodes>(&self, nodes: &N) -> bool {
-		self.tail.ones().any(|id| nodes.has_assignment(id, Var::A))
-			&& self.tail.ones().any(|id| {
+		let mut ascending = self.tail.ascending();
+
+		ascending.clone().any(|id| nodes.has_assignment(id, Var::A))
+			&& ascending.any(|id| {
 				nodes
 					.predecessors(id)
 					.any(|id| nodes.has_assignment(id, Var::A))
@@ -116,12 +118,12 @@ impl Single {
 	}
 
 	fn try_set_tail(&mut self, id: usize) {
-		if self.tail.insert(id) {
+		if self.tail.grow_insert(id) {
 			return;
 		}
 
 		for Branch { set, .. } in &mut self.branches {
-			if set.remove(id) {
+			if set.remove(id).unwrap_or(false) {
 				break;
 			}
 		}
@@ -149,7 +151,7 @@ impl Single {
 		self.continuations = continuations;
 
 		self.branches.retain_mut(|Branch { set, .. }| {
-			if set.ones().len() == 0 {
+			if set.is_empty() {
 				sets.push(std::mem::take(set));
 
 				false
@@ -163,17 +165,18 @@ impl Single {
 		// We ignore predecessors outside the set as they are from parallel branches.
 		// We include successors to an empty branch as they are not in our set.
 		self.continuations.clear();
-		self.continuations.extend(
-			self.tail
-				.ones()
-				.filter(|&tail| nodes.predecessors(tail).any(|id| set[id] && !self.tail[id])),
-		);
+		self.continuations
+			.extend(self.tail.ascending().filter(|&tail| {
+				nodes
+					.predecessors(tail)
+					.any(|id| set.contains(id) && !self.tail.contains(id))
+			}));
 	}
 
 	fn find_set_of(branches: &mut [Branch], id: usize) -> Option<&mut Set> {
 		branches
 			.iter_mut()
-			.find_map(|Branch { set, .. }| set[id].then_some(set))
+			.find_map(|Branch { set, .. }| set.contains(id).then_some(set))
 	}
 
 	fn set_continuation_edges<N: Nodes>(
@@ -190,7 +193,7 @@ impl Single {
 				let branch = if let Some(set) = Self::find_set_of(&mut self.branches, predecessor) {
 					let branch = nodes.add_assignment(Var::A, index);
 
-					set.insert(branch);
+					set.grow_insert(branch);
 
 					branch
 				} else if predecessor == head {
@@ -212,8 +215,11 @@ impl Single {
 	fn set_continuation_merges<N: Nodes>(&mut self, nodes: &mut N, continuation: usize) {
 		for Branch { set, .. } in &mut self.branches {
 			self.temporary.clear();
-			self.temporary
-				.extend(nodes.predecessors(continuation).filter(|&id| set[id]));
+			self.temporary.extend(
+				nodes
+					.predecessors(continuation)
+					.filter(|&id| set.contains(id)),
+			);
 
 			if self.temporary.len() > 1 {
 				let dummy = nodes.add_no_operation();
@@ -224,7 +230,7 @@ impl Single {
 
 				nodes.add_edge(dummy, continuation);
 
-				set.insert(dummy);
+				set.grow_insert(dummy);
 
 				self.additional.push(dummy);
 			}
@@ -234,7 +240,7 @@ impl Single {
 	fn set_branch_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
 		let continuation = nodes.add_selection(Var::A);
 
-		self.tail.insert(continuation);
+		self.tail.grow_insert(continuation);
 		self.additional.push(continuation);
 
 		self.set_continuation_edges(nodes, head, continuation);
@@ -246,7 +252,7 @@ impl Single {
 	// We add dummy nodes to empty branches to ensure symmetry. This is done
 	// last as we don't always know which branches are empty at the start.
 	fn fill_empty_branches<N: Nodes>(&mut self, nodes: &mut N, head: usize) {
-		for tail in self.tail.ones() {
+		for tail in self.tail.ascending() {
 			let count = nodes.predecessors(tail).filter(|&id| id == head).count();
 
 			for _ in 0..count {
@@ -264,8 +270,8 @@ impl Single {
 	// to it may still need to be restructured, and they need a tail.
 	fn patch_single_continuation<N: Predecessors>(&mut self, nodes: &N, tail: usize) {
 		for Branch { set, .. } in &mut self.branches {
-			if nodes.predecessors(tail).any(|id| set[id]) {
-				set.insert(tail);
+			if nodes.predecessors(tail).any(|id| set.contains(id)) {
+				set.grow_insert(tail);
 			}
 		}
 	}

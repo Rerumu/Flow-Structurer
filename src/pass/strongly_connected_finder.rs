@@ -28,12 +28,8 @@ impl StronglyConnectedFinder {
 	}
 
 	fn fill_names(&mut self) {
-		let last = self
-			.depth_first_searcher
-			.set()
-			.ones()
-			.max()
-			.map_or(0, |index| index + 1);
+		let mut descending = self.depth_first_searcher.set().descending();
+		let last = descending.next().map_or(0, |index| index + 1);
 
 		self.names.clear();
 		self.names.resize(last, usize::MAX);
