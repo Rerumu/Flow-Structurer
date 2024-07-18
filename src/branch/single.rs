@@ -1,5 +1,5 @@
 use crate::{
-	nodes::{Nodes, Predecessors, Var},
+	nodes::{Flag, Nodes, Predecessors},
 	pass::dominator_finder::DominatorFinder,
 	set::{Set, Slice},
 };
@@ -107,13 +107,14 @@ impl Single {
 
 	// We must ensure either all assignments are in the tail or none are.
 	fn has_orphan_assignments<N: Nodes>(&self, nodes: &N) -> bool {
-		let mut ascending = self.tail.ascending();
+		let mut ascending_1 = self.tail.ascending();
+		let mut ascending_2 = self.tail.ascending();
 
-		ascending.clone().any(|id| nodes.has_assignment(id, Var::A))
-			&& ascending.any(|id| {
-				nodes
-					.predecessors(id)
-					.any(|id| nodes.has_assignment(id, Var::A))
+		ascending_1.any(|id| nodes.has_assignment(id, Flag::A))
+			&& ascending_2.any(|id| {
+				let mut predecessors = nodes.predecessors(id);
+
+				predecessors.any(|id| nodes.has_assignment(id, Flag::A))
 			})
 	}
 
@@ -135,12 +136,12 @@ impl Single {
 		for predecessor in continuations.iter().flat_map(|&id| {
 			nodes
 				.predecessors(id)
-				.filter(|&id| nodes.has_assignment(id, Var::A))
+				.filter(|&id| nodes.has_assignment(id, Flag::A))
 		}) {
 			let mut predecessors = nodes.predecessors(predecessor);
 
 			if let Some(destination) = predecessors.next() {
-				if predecessors.next().is_none() && nodes.has_assignment(destination, Var::C) {
+				if predecessors.next().is_none() && nodes.has_assignment(destination, Flag::C) {
 					self.try_set_tail(destination);
 				}
 			}
@@ -191,13 +192,13 @@ impl Single {
 
 			for &predecessor in &self.temporary {
 				let branch = if let Some(set) = Self::find_set_of(&mut self.branches, predecessor) {
-					let branch = nodes.add_assignment(Var::A, index);
+					let branch = nodes.add_assignment(Flag::A, index);
 
 					set.grow_insert(branch);
 
 					branch
 				} else if predecessor == head {
-					nodes.add_assignment(Var::A, index)
+					nodes.add_assignment(Flag::A, index)
 				} else {
 					continue;
 				};
@@ -238,7 +239,7 @@ impl Single {
 	}
 
 	fn set_branch_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
-		let continuation = nodes.add_selection(Var::A);
+		let continuation = nodes.add_selection(Flag::A);
 
 		self.tail.grow_insert(continuation);
 		self.additional.push(continuation);

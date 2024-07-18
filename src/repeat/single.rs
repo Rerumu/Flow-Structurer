@@ -1,5 +1,5 @@
 use crate::{
-	nodes::{Nodes, Predecessors, Successors, Var},
+	nodes::{Flag, Nodes, Predecessors, Successors},
 	set::Slice,
 };
 
@@ -51,7 +51,7 @@ impl Single {
 	}
 
 	fn set_new_start<N: Nodes>(&mut self, nodes: &mut N) -> usize {
-		let start = nodes.add_selection(Var::C);
+		let start = nodes.add_selection(Flag::C);
 
 		self.additional.push(start);
 
@@ -60,7 +60,7 @@ impl Single {
 			self.temporaries.extend(nodes.predecessors(entry));
 
 			for &predecessor in &self.temporaries {
-				let branch = nodes.add_assignment(Var::C, index);
+				let branch = nodes.add_assignment(Flag::C, index);
 
 				nodes.replace_edge(predecessor, entry, branch);
 				nodes.add_edge(branch, start);
@@ -83,7 +83,7 @@ impl Single {
 	}
 
 	fn set_new_end<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
-		let end = nodes.add_selection(Var::C);
+		let end = nodes.add_selection(Flag::C);
 
 		self.additional.push(end);
 
@@ -93,7 +93,7 @@ impl Single {
 				.extend(nodes.predecessors(exit).filter(|&id| set.contains(id)));
 
 			for &predecessor in &self.temporaries {
-				let branch = nodes.add_assignment(Var::C, index);
+				let branch = nodes.add_assignment(Flag::C, index);
 
 				nodes.replace_edge(predecessor, exit, branch);
 				nodes.add_edge(branch, end);
@@ -154,7 +154,7 @@ impl Single {
 		);
 
 		for &exit in &self.temporaries {
-			let branch = nodes.add_assignment(Var::B, 0);
+			let branch = nodes.add_assignment(Flag::B, 0);
 
 			nodes.replace_edge(exit, end, branch);
 			nodes.add_edge(branch, latch);
@@ -172,7 +172,7 @@ impl Single {
 		);
 
 		for &entry in &self.temporaries {
-			let branch = nodes.add_assignment(Var::B, 1);
+			let branch = nodes.add_assignment(Flag::B, 1);
 
 			nodes.replace_edge(entry, start, branch);
 			nodes.add_edge(branch, latch);
@@ -182,7 +182,7 @@ impl Single {
 	}
 
 	fn set_new_latch<N: Nodes>(&mut self, nodes: &mut N, set: Slice, start: usize, end: usize) {
-		let latch = nodes.add_selection(Var::B);
+		let latch = nodes.add_selection(Flag::B);
 
 		self.additional.push(latch);
 

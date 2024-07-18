@@ -1,11 +1,11 @@
-use flow_structurer::nodes::{Nodes, Predecessors, Successors, Var};
+use flow_structurer::nodes::{Flag, Nodes, Predecessors, Successors};
 
 #[derive(Clone, Copy)]
 pub enum Statement {
 	NoOperation,
 	Simple,
-	Selection { var: Var },
-	Assignment { var: Var, value: usize },
+	Select { flag: Flag },
+	Assign { flag: Flag, value: usize },
 }
 
 impl Statement {
@@ -13,8 +13,8 @@ impl Statement {
 		match self {
 			Self::NoOperation => "A",
 			Self::Simple => "B",
-			Self::Selection { .. } => "C",
-			Self::Assignment { .. } => "D",
+			Self::Select { .. } => "C",
+			Self::Assign { .. } => "D",
 		}
 	}
 
@@ -22,7 +22,7 @@ impl Statement {
 		match self {
 			Self::NoOperation => "#C2C5FA",
 			Self::Simple => "#FBE78E",
-			Self::Selection { .. } | Self::Assignment { .. } => "#EF8784",
+			Self::Select { .. } | Self::Assign { .. } => "#EF8784",
 		}
 	}
 
@@ -34,8 +34,8 @@ impl Statement {
 
 				write!(f, "S{original}")
 			}
-			Self::Selection { var } => write!(f, "{var:?}?"),
-			Self::Assignment { var, value } => write!(f, "{var:?} := {value}"),
+			Self::Select { flag } => write!(f, "{flag:?}?"),
+			Self::Assign { flag, value } => write!(f, "{flag:?} := {value}"),
 		}
 	}
 }
@@ -129,20 +129,20 @@ impl Successors for List {
 }
 
 impl Nodes for List {
-	fn has_assignment(&self, id: usize, var: Var) -> bool {
-		matches!(self.nodes[id].statement, Statement::Assignment { var: other, .. } if other == var)
+	fn has_assignment(&self, id: usize, flag: Flag) -> bool {
+		matches!(self.nodes[id].statement, Statement::Assign { flag: other, .. } if other == flag)
 	}
 
 	fn add_no_operation(&mut self) -> usize {
 		self.add_statement(Statement::NoOperation)
 	}
 
-	fn add_selection(&mut self, var: Var) -> usize {
-		self.add_statement(Statement::Selection { var })
+	fn add_selection(&mut self, flag: Flag) -> usize {
+		self.add_statement(Statement::Select { flag })
 	}
 
-	fn add_assignment(&mut self, var: Var, value: usize) -> usize {
-		self.add_statement(Statement::Assignment { var, value })
+	fn add_assignment(&mut self, flag: Flag, value: usize) -> usize {
+		self.add_statement(Statement::Assign { flag, value })
 	}
 
 	fn add_edge(&mut self, from: usize, to: usize) {
