@@ -66,20 +66,31 @@ impl Single {
 		predecessors.next().is_none() || predecessors.next().is_some()
 	}
 
+	fn retain_branches_if<P: Fn(&Set) -> bool>(&mut self, pool: &mut Vec<Set>, predicate: P) {
+		// When `extract_if` is stable it should replace this.
+		self.branches.retain_mut(|Branch { set, .. }| {
+			if set.maximum() != 0 && !predicate(set) {
+				pool.push(std::mem::take(set));
+			}
+
+			predicate(set)
+		});
+	}
+
 	fn find_destinations<N: Nodes>(
 		&mut self,
 		nodes: &N,
-		sets: &mut Vec<Set>,
+		pool: &mut Vec<Set>,
 		head: usize,
 		dominator_finder: &DominatorFinder,
 	) {
-		sets.extend(self.branches.drain(..).map(|Branch { set, .. }| set));
+		self.retain_branches_if(pool, |_| false);
 
 		for start in nodes
 			.successors(head)
 			.filter(|&id| !Self::is_in_tail(nodes, id, dominator_finder))
 		{
-			let mut set = sets.pop().unwrap_or_default();
+			let mut set = pool.pop().unwrap_or_default();
 
 			set.clear();
 
@@ -118,7 +129,7 @@ impl Single {
 			})
 	}
 
-	fn try_set_tail(&mut self, id: usize) {
+	fn set_tail_if_needed(&mut self, id: usize) {
 		if self.tail.grow_insert(id) {
 			return;
 		}
@@ -130,7 +141,7 @@ impl Single {
 		}
 	}
 
-	fn trim_orphan_assignments<N: Nodes>(&mut self, nodes: &N, sets: &mut Vec<Set>) {
+	fn trim_orphan_assignments<N: Nodes>(&mut self, nodes: &N) {
 		let continuations = std::mem::take(&mut self.continuations);
 
 		for predecessor in continuations.iter().flat_map(|&id| {
@@ -142,24 +153,14 @@ impl Single {
 
 			if let Some(destination) = predecessors.next() {
 				if predecessors.next().is_none() && nodes.has_assignment(destination, Flag::C) {
-					self.try_set_tail(destination);
+					self.set_tail_if_needed(destination);
 				}
 			}
 
-			self.try_set_tail(predecessor);
+			self.set_tail_if_needed(predecessor);
 		}
 
 		self.continuations = continuations;
-
-		self.branches.retain_mut(|Branch { set, .. }| {
-			if set.is_empty() {
-				sets.push(std::mem::take(set));
-
-				false
-			} else {
-				true
-			}
-		});
 	}
 
 	fn find_continuations<N: Predecessors>(&mut self, nodes: &N, set: Slice) {
@@ -172,6 +173,17 @@ impl Single {
 					.predecessors(tail)
 					.any(|id| set.contains(id) && !self.tail.contains(id))
 			}));
+	}
+
+	fn trim_orphans_if_needed<N: Nodes>(&mut self, nodes: &N, pool: &mut Vec<Set>, set: Slice) {
+		if !self.has_orphan_assignments(nodes) {
+			return;
+		}
+
+		self.trim_orphan_assignments(nodes);
+
+		self.retain_branches_if(pool, |set| !set.is_empty());
+		self.find_continuations(nodes, set);
 	}
 
 	fn find_set_of(branches: &mut [Branch], id: usize) -> Option<&mut Set> {
@@ -238,14 +250,13 @@ impl Single {
 		}
 	}
 
-	fn set_branch_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
+	fn set_new_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
 		let continuation = nodes.add_selection(Flag::A);
 
 		self.tail.grow_insert(continuation);
 		self.additional.push(continuation);
 
 		self.set_continuation_edges(nodes, head, continuation);
-		self.set_continuation_merges(nodes, continuation);
 
 		continuation
 	}
@@ -267,49 +278,33 @@ impl Single {
 		}
 	}
 
-	// If we have a single continuation then the branches pointing
-	// to it may still need to be restructured, and they need a tail.
-	fn patch_single_continuation<N: Predecessors>(&mut self, nodes: &N, tail: usize) {
-		for Branch { set, .. } in &mut self.branches {
-			if nodes.predecessors(tail).any(|id| set.contains(id)) {
-				set.grow_insert(tail);
-			}
-		}
-	}
-
 	/// Applies the restructuring algorithm to the given set of nodes starting at the head.
 	/// The end node of the structured branch is returned, if applicable.
 	pub fn run<N: Nodes>(
 		&mut self,
 		nodes: &mut N,
-		sets: &mut Vec<Set>,
+		pool: &mut Vec<Set>,
 		set: Slice,
 		head: usize,
 		dominator_finder: &DominatorFinder,
 	) -> usize {
 		self.additional.clear();
 
-		self.find_destinations(nodes, sets, head, dominator_finder);
+		self.find_destinations(nodes, pool, head, dominator_finder);
 		self.find_sets(set, head, dominator_finder);
 		self.find_continuations(nodes, set);
+		self.trim_orphans_if_needed(nodes, pool, set);
 
-		if let &[tail] = self.continuations.as_slice() {
-			self.patch_single_continuation(nodes, tail);
-			self.fill_empty_branches(nodes, head);
-
+		let tail = if let &[tail] = self.continuations.as_slice() {
 			tail
 		} else {
-			if self.has_orphan_assignments(nodes) {
-				self.trim_orphan_assignments(nodes, sets);
-				self.find_continuations(nodes, set);
-			}
+			self.set_new_continuation(nodes, head)
+		};
 
-			let tail = self.set_branch_continuation(nodes, head);
+		self.set_continuation_merges(nodes, tail);
+		self.fill_empty_branches(nodes, head);
 
-			self.fill_empty_branches(nodes, head);
-
-			tail
-		}
+		tail
 	}
 }
 
