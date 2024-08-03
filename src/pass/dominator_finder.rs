@@ -89,6 +89,14 @@ impl DominatorFinder {
 	}
 
 	#[must_use]
+	pub fn contains(&self, id: usize) -> bool {
+		self.reverse_post_searcher
+			.id_to_post()
+			.get(id)
+			.map_or(false, |&id| id != usize::MAX)
+	}
+
+	#[must_use]
 	pub fn dominates(&self, dominator: usize, id: usize) -> Option<bool> {
 		let &dominator = self.reverse_post_searcher.id_to_post().get(dominator)?;
 		let &id = self.reverse_post_searcher.id_to_post().get(id)?;

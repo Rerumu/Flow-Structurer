@@ -4,16 +4,11 @@ use crate::{
 	set::{Set, Slice},
 };
 
-pub struct Branch {
-	pub start: usize,
-	pub set: Set,
-}
-
 /// This structure implements a single pass of this algorithm. It assumes that the set
 /// provided is a branch construct and that the start node is the head of that branch.
 /// Additionally, all strongly connected components are assumed to have been normalized.
 pub struct Single {
-	branches: Vec<Branch>,
+	branches: Vec<(Set, usize)>,
 	tail: Set,
 	continuations: Vec<usize>,
 
@@ -37,7 +32,7 @@ impl Single {
 
 	/// Returns the branch bodies of the restructured branch.
 	#[must_use]
-	pub fn branches_mut(&mut self) -> &mut Vec<Branch> {
+	pub fn branches_mut(&mut self) -> &mut Vec<(Set, usize)> {
 		&mut self.branches
 	}
 
@@ -68,7 +63,7 @@ impl Single {
 
 	fn retain_branches_if<P: Fn(&Set) -> bool>(&mut self, pool: &mut Vec<Set>, predicate: P) {
 		// When `extract_if` is stable it should replace this.
-		self.branches.retain_mut(|Branch { set, .. }| {
+		self.branches.retain_mut(|(set, _)| {
 			if set.maximum() != 0 && !predicate(set) {
 				pool.push(std::mem::take(set));
 			}
@@ -94,7 +89,7 @@ impl Single {
 
 			set.clear();
 
-			self.branches.push(Branch { start, set });
+			self.branches.push((set, start));
 		}
 	}
 
@@ -102,7 +97,7 @@ impl Single {
 		self.tail.clear();
 
 		'dominated: for id in set {
-			for Branch { start, set } in &mut self.branches {
+			for (set, start) in &mut self.branches {
 				if dominator_finder.dominates(*start, id).unwrap_or(false) {
 					set.grow_insert(id);
 
@@ -142,7 +137,7 @@ impl Single {
 			return;
 		}
 
-		for Branch { set, .. } in &mut self.branches {
+		for (set, _) in &mut self.branches {
 			if set.remove(id).unwrap_or(false) {
 				break;
 			}
@@ -194,10 +189,10 @@ impl Single {
 		self.find_continuations(nodes, set);
 	}
 
-	fn find_set_of(branches: &mut [Branch], id: usize) -> Option<&mut Set> {
+	fn find_set_of(branches: &mut [(Set, usize)], id: usize) -> Option<&mut Set> {
 		branches
 			.iter_mut()
-			.find_map(|Branch { set, .. }| set.contains(id).then_some(set))
+			.find_map(|(set, _)| set.contains(id).then_some(set))
 	}
 
 	fn set_continuation_edges<N: Nodes>(
@@ -234,7 +229,7 @@ impl Single {
 	}
 
 	fn set_continuation_merges<N: Nodes>(&mut self, nodes: &mut N, continuation: usize) {
-		for Branch { set, .. } in &mut self.branches {
+		for (set, _) in &mut self.branches {
 			self.temporary.clear();
 			self.temporary.extend(
 				nodes
