@@ -118,15 +118,23 @@ impl Single {
 
 	// We must ensure either all assignments are in the tail or none are.
 	fn has_orphan_assignments<N: Nodes>(&self, nodes: &N) -> bool {
-		let mut ascending_1 = self.tail.ascending();
-		let mut ascending_2 = self.tail.ascending();
+		let mut has_in_tail = false;
+		let mut has_in_branch = false;
 
-		ascending_1.any(|id| nodes.has_assignment(id, Flag::A))
-			&& ascending_2.any(|id| {
-				let mut predecessors = nodes.predecessors(id);
+		for &id in &self.continuations {
+			for id in nodes.predecessors(id) {
+				if nodes.has_assignment(id, Flag::A) {
+					has_in_tail |= self.tail.contains(id);
+					has_in_branch |= !self.tail.contains(id);
 
-				predecessors.any(|id| nodes.has_assignment(id, Flag::A))
-			})
+					if has_in_tail && has_in_branch {
+						return true;
+					}
+				}
+			}
+		}
+
+		false
 	}
 
 	fn set_tail_if_needed(&mut self, id: usize) {
