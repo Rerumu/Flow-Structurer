@@ -13,7 +13,9 @@ fuzz_target!(|built: DirectedGraph| {
 
 	Repeat::new().run(&mut list, &mut set);
 
-	set.grow_insert(list.set_single_exit());
+	if let Some(exit) = list.set_single_exit() {
+		set.grow_insert(exit);
+	}
 
 	Branch::new().run(&mut list, &mut set, start);
 });

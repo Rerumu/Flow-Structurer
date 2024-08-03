@@ -102,17 +102,23 @@ impl List {
 		self.nodes.len() - 1
 	}
 
-	pub fn set_single_exit(&mut self) -> usize {
-		let len = self.len();
-		let exit = self.add_no_operation();
+	pub fn set_single_exit(&mut self) -> Option<usize> {
+		let mut exits = self.nodes.iter().filter(|node| node.successors.is_empty());
 
-		for id in 0..len {
-			if self.successors(id).next().is_none() {
-				self.add_edge(id, exit);
+		if exits.next().is_some() && exits.next().is_some() {
+			let len = self.nodes.len();
+			let exit = self.add_no_operation();
+
+			for id in 0..len {
+				if self.nodes[id].successors.is_empty() {
+					self.add_edge(id, exit);
+				}
 			}
-		}
 
-		exit
+			Some(exit)
+		} else {
+			None
+		}
 	}
 }
 
