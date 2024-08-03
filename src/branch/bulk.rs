@@ -10,7 +10,6 @@ use super::single::{Branch, Single};
 /// More details are provided in [`Single`].
 pub struct Bulk {
 	branches: Vec<Branch>,
-	sets: Vec<Set>,
 
 	single: Single,
 	dominator_finder: DominatorFinder,
@@ -22,7 +21,6 @@ impl Bulk {
 	pub const fn new() -> Self {
 		Self {
 			branches: Vec::new(),
-			sets: Vec::new(),
 
 			single: Single::new(),
 			dominator_finder: DominatorFinder::new(),
@@ -48,40 +46,52 @@ impl Bulk {
 		}
 	}
 
-	fn set_start(&mut self, root: &Set, start: usize) {
-		let mut set = self.sets.pop().unwrap_or_default();
+	fn set_start(&mut self, root: &Set, start: usize, pool: &mut Vec<Set>) {
+		let mut set = pool.pop().unwrap_or_default();
 
 		set.clone_from(root);
 
 		self.branches.push(Branch { start, set });
 	}
 
-	fn process_branch<N: Nodes>(&mut self, nodes: &mut N, set: Slice, start: usize) {
+	fn process_branch<N: Nodes>(
+		&mut self,
+		nodes: &mut N,
+		set: Slice,
+		start: usize,
+		pool: &mut Vec<Set>,
+	) {
 		let start = self
 			.single
-			.run(nodes, &mut self.sets, set, start, &self.dominator_finder);
+			.run(nodes, set, start, pool, &self.dominator_finder);
 
-		let set = std::mem::replace(self.single.tail_mut(), self.sets.pop().unwrap_or_default());
+		let set = std::mem::replace(self.single.tail_mut(), pool.pop().unwrap_or_default());
 
 		self.branches.push(Branch { start, set });
 		self.branches.append(self.single.branches_mut());
 	}
 
 	/// Restructures the nodes in the given set.
-	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set, start: usize) {
-		self.set_start(set, start);
+	pub fn run<N: Nodes>(
+		&mut self,
+		nodes: &mut N,
+		set: &mut Set,
+		start: usize,
+		pool: &mut Vec<Set>,
+	) {
+		self.set_start(set, start, pool);
 
 		while let Some(mut child) = self.branches.pop() {
 			if let Some(start) = Self::find_head(nodes, &mut child.set, child.start) {
 				self.dominator_finder
 					.run(nodes, child.set.ascending(), start);
 
-				self.process_branch(nodes, child.set.as_slice(), start);
+				self.process_branch(nodes, child.set.as_slice(), start, pool);
 
 				set.extend(self.single.additional().iter().copied());
 			}
 
-			self.sets.push(child.set);
+			pool.push(child.set);
 		}
 	}
 }

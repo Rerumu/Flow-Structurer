@@ -80,8 +80,8 @@ impl Single {
 	fn find_destinations<N: Nodes>(
 		&mut self,
 		nodes: &N,
-		pool: &mut Vec<Set>,
 		head: usize,
+		pool: &mut Vec<Set>,
 		dominator_finder: &DominatorFinder,
 	) {
 		self.retain_branches_if(pool, |_| false);
@@ -183,7 +183,7 @@ impl Single {
 			}));
 	}
 
-	fn trim_orphans_if_needed<N: Nodes>(&mut self, nodes: &N, pool: &mut Vec<Set>, set: Slice) {
+	fn trim_orphans_if_needed<N: Nodes>(&mut self, nodes: &N, set: Slice, pool: &mut Vec<Set>) {
 		if !self.has_orphan_assignments(nodes) {
 			return;
 		}
@@ -291,17 +291,17 @@ impl Single {
 	pub fn run<N: Nodes>(
 		&mut self,
 		nodes: &mut N,
-		pool: &mut Vec<Set>,
 		set: Slice,
 		head: usize,
+		pool: &mut Vec<Set>,
 		dominator_finder: &DominatorFinder,
 	) -> usize {
 		self.additional.clear();
 
-		self.find_destinations(nodes, pool, head, dominator_finder);
+		self.find_destinations(nodes, head, pool, dominator_finder);
 		self.find_sets(set, head, dominator_finder);
 		self.find_continuations(nodes, set);
-		self.trim_orphans_if_needed(nodes, pool, set);
+		self.trim_orphans_if_needed(nodes, set, pool);
 
 		let tail = if let &[tail] = self.continuations.as_slice() {
 			tail

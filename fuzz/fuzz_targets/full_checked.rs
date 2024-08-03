@@ -10,22 +10,23 @@ mod sample;
 fuzz_target!(|built: DirectedGraph| {
 	let (mut list, start) = built.into_inner();
 	let mut set = (0..list.len()).collect();
+	let mut pool = Vec::new();
 
-	Repeat::new().run(&mut list, &mut set);
+	Repeat::new().run(&mut list, &mut set, &mut pool);
 
 	if let Some(exit) = list.set_single_exit() {
 		set.grow_insert(exit);
 	}
 
-	Branch::new().run(&mut list, &mut set, start);
+	Branch::new().run(&mut list, &mut set, start, &mut pool);
 
 	let len = set.len();
 
-	Repeat::new().run(&mut list, &mut set);
+	Repeat::new().run(&mut list, &mut set, &mut pool);
 
 	assert_eq!(len, set.len(), "`Repeat` ran twice");
 
-	Branch::new().run(&mut list, &mut set, start);
+	Branch::new().run(&mut list, &mut set, start, &mut pool);
 
 	assert_eq!(len, set.len(), "`Branch` ran twice");
 });

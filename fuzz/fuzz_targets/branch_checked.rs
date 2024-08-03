@@ -10,12 +10,13 @@ mod sample;
 fuzz_target!(|built: DirectedAcyclicGraph| {
 	let mut list = built.into_inner();
 	let mut set = (0..list.len()).collect();
+	let mut pool = Vec::new();
 
-	Branch::new().run(&mut list, &mut set, 0);
+	Branch::new().run(&mut list, &mut set, 0, &mut pool);
 
 	let len = set.len();
 
-	Branch::new().run(&mut list, &mut set, 0);
+	Branch::new().run(&mut list, &mut set, 0, &mut pool);
 
 	assert_eq!(len, set.len(), "`Branch` ran twice");
 });
