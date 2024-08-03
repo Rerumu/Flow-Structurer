@@ -55,3 +55,10 @@ path = "fuzz_targets/repeat_unchecked.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "branch_orphan"
+path = "fuzz_targets/branch_orphan.rs"
+test = false
+doc = false
+bench = false
