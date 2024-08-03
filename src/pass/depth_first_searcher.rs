@@ -1,14 +1,13 @@
 use crate::{nodes::Successors, set::Set};
 
-struct Item {
+struct Visit {
 	id: usize,
 	successors: std::ops::Range<usize>,
 }
 
-#[derive(Default)]
 pub struct DepthFirstSearcher {
-	items: Vec<Item>,
-	set: Set,
+	visits: Vec<Visit>,
+	nodes: Set,
 
 	successors: Vec<usize>,
 }
@@ -17,19 +16,19 @@ impl DepthFirstSearcher {
 	#[must_use]
 	pub const fn new() -> Self {
 		Self {
-			items: Vec::new(),
-			set: Set::new(),
+			visits: Vec::new(),
+			nodes: Set::new(),
 
 			successors: Vec::new(),
 		}
 	}
 
-	fn queue_item<N, H>(&mut self, nodes: &N, id: usize, mut handler: H)
+	fn queue_visit<N, H>(&mut self, nodes: &N, id: usize, mut handler: H)
 	where
 		N: Successors,
 		H: FnMut(usize, bool),
 	{
-		if !self.set.remove(id).unwrap_or(false) {
+		if !self.nodes.remove(id).unwrap_or(false) {
 			return;
 		}
 
@@ -37,7 +36,7 @@ impl DepthFirstSearcher {
 
 		self.successors.extend(nodes.successors(id));
 
-		self.items.push(Item {
+		self.visits.push(Visit {
 			id,
 			successors: start..self.successors.len(),
 		});
@@ -46,13 +45,13 @@ impl DepthFirstSearcher {
 	}
 
 	#[must_use]
-	pub const fn set(&self) -> &Set {
-		&self.set
+	pub const fn nodes(&self) -> &Set {
+		&self.nodes
 	}
 
-	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
-		self.set.clear();
-		self.set.extend(set);
+	#[must_use]
+	pub fn nodes_mut(&mut self) -> &mut Set {
+		&mut self.nodes
 	}
 
 	pub fn run<N, H>(&mut self, nodes: &N, start: usize, mut handler: H)
@@ -60,18 +59,24 @@ impl DepthFirstSearcher {
 		N: Successors,
 		H: FnMut(usize, bool),
 	{
-		self.queue_item(nodes, start, &mut handler);
+		self.queue_visit(nodes, start, &mut handler);
 
-		while let Some(mut item) = self.items.pop() {
-			if let Some(successor) = item.successors.next_back() {
-				self.items.push(item);
+		while let Some(mut visit) = self.visits.pop() {
+			if let Some(successor) = visit.successors.next_back() {
+				self.visits.push(visit);
 
-				self.queue_item(nodes, self.successors[successor], &mut handler);
+				self.queue_visit(nodes, self.successors[successor], &mut handler);
 			} else {
-				handler(item.id, true);
+				handler(visit.id, true);
 
-				self.successors.truncate(item.successors.start);
+				self.successors.truncate(visit.successors.start);
 			}
 		}
+	}
+}
+
+impl Default for DepthFirstSearcher {
+	fn default() -> Self {
+		Self::new()
 	}
 }

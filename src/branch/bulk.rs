@@ -1,19 +1,17 @@
 use crate::{
 	nodes::{Nodes, Successors},
-	pass::dominator_finder::DominatorFinder,
 	set::{Set, Slice},
 };
 
-use super::single::{Branch, Single};
+use super::single::Single;
 
 /// This structure implements a bulk recursive algorithm to restructure a set of nodes.
 /// More details are provided in [`Single`].
 pub struct Bulk {
-	branches: Vec<Branch>,
-	sets: Vec<Set>,
+	found: Vec<(Set, usize)>,
+	pool: Vec<Set>,
 
 	single: Single,
-	dominator_finder: DominatorFinder,
 }
 
 impl Bulk {
@@ -21,67 +19,63 @@ impl Bulk {
 	#[must_use]
 	pub const fn new() -> Self {
 		Self {
-			branches: Vec::new(),
-			sets: Vec::new(),
+			found: Vec::new(),
+			pool: Vec::new(),
 
 			single: Single::new(),
-			dominator_finder: DominatorFinder::new(),
 		}
 	}
 
-	fn find_head<N: Successors>(nodes: &N, set: &mut Set, mut start: usize) -> Option<usize> {
+	fn find_next_branch<N: Successors>(nodes: &N, start: &mut usize, set: &mut Set) -> bool {
 		loop {
 			// We ignore loops, either self loops or a successor that was already visited.
-			let mut successors = nodes
-				.successors(start)
-				.filter(|&id| start != id && set.contains(id));
+			set.remove(*start);
 
-			let successor = successors.next()?;
+			let mut successors = nodes.successors(*start).filter(|&id| set.contains(id));
 
-			if successors.next().is_some() {
-				return Some(start);
+			if let (Some(successor), None) = (successors.next(), successors.next()) {
+				*start = successor;
+			} else {
+				break;
 			}
+		}
 
-			set.remove(start);
+		!set.is_empty()
+	}
 
-			start = successor;
+	fn queue_if_branch<N: Nodes>(&mut self, nodes: &N, mut start: usize, mut set: Set) {
+		if Self::find_next_branch(nodes, &mut start, &mut set) {
+			self.found.push((set, start));
+		} else {
+			self.pool.push(set);
 		}
 	}
 
-	fn set_start(&mut self, root: &Set, start: usize) {
-		let mut set = self.sets.pop().unwrap_or_default();
+	fn run_single<N: Nodes>(&mut self, nodes: &mut N, head: usize, set: Slice) {
+		let last = self.single.run(nodes, head, set, &mut self.pool);
+		let tail = std::mem::replace(self.single.tail_mut(), self.pool.pop().unwrap_or_default());
 
-		set.clone_from(root);
+		self.queue_if_branch(nodes, last, tail);
 
-		self.branches.push(Branch { start, set });
-	}
-
-	fn process_branch<N: Nodes>(&mut self, nodes: &mut N, set: Slice, start: usize) {
-		let start = self
-			.single
-			.run(nodes, &mut self.sets, set, start, &self.dominator_finder);
-
-		let set = std::mem::replace(self.single.tail_mut(), self.sets.pop().unwrap_or_default());
-
-		self.branches.push(Branch { start, set });
-		self.branches.append(self.single.branches_mut());
+		while let Some((set, start)) = self.single.branches_mut().pop() {
+			self.queue_if_branch(nodes, start, set);
+		}
 	}
 
 	/// Restructures the nodes in the given set.
 	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set, start: usize) {
-		self.set_start(set, start);
+		let mut original = self.pool.pop().unwrap_or_default();
 
-		while let Some(mut child) = self.branches.pop() {
-			if let Some(start) = Self::find_head(nodes, &mut child.set, child.start) {
-				self.dominator_finder
-					.run(nodes, child.set.ascending(), start);
+		original.clone_from(set);
 
-				self.process_branch(nodes, child.set.as_slice(), start);
+		self.queue_if_branch(nodes, start, original);
 
-				set.extend(self.single.additional().iter().copied());
-			}
+		while let Some((branch, start)) = self.found.pop() {
+			self.run_single(nodes, start, branch.as_slice());
 
-			self.sets.push(child.set);
+			set.extend(self.single.additional().iter().copied());
+
+			self.pool.push(branch);
 		}
 	}
 }

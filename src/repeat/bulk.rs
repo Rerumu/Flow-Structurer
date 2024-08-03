@@ -10,7 +10,7 @@ use super::single::Single;
 /// More details are provided in [`Single`].
 pub struct Bulk {
 	found: Vec<Set>,
-	sets: Vec<Set>,
+	pool: Vec<Set>,
 
 	single: Single,
 	strongly_connected_finder: StronglyConnectedFinder,
@@ -22,7 +22,7 @@ impl Bulk {
 	pub const fn new() -> Self {
 		Self {
 			found: Vec::new(),
-			sets: Vec::new(),
+			pool: Vec::new(),
 
 			single: Single::new(),
 			strongly_connected_finder: StronglyConnectedFinder::new(),
@@ -38,7 +38,7 @@ impl Bulk {
 			};
 
 			if repeats {
-				let mut set = self.sets.pop().unwrap_or_default();
+				let mut set = self.pool.pop().unwrap_or_default();
 
 				set.clear();
 				set.extend(list.iter().copied());
@@ -57,11 +57,11 @@ impl Bulk {
 
 			child.remove(start);
 
-			set.extend(self.single.additional().iter().copied());
-
 			self.find_strongly_connected(nodes, child.as_slice());
 
-			self.sets.push(child);
+			set.extend(self.single.additional().iter().copied());
+
+			self.pool.push(child);
 		}
 	}
 }

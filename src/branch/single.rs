@@ -1,24 +1,21 @@
 use crate::{
-	nodes::{Flag, Nodes, Predecessors},
-	pass::dominator_finder::DominatorFinder,
+	nodes::{Flag, Nodes, Predecessors, Successors},
+	pass::depth_first_searcher::DepthFirstSearcher,
 	set::{Set, Slice},
 };
-
-pub struct Branch {
-	pub start: usize,
-	pub set: Set,
-}
 
 /// This structure implements a single pass of this algorithm. It assumes that the set
 /// provided is a branch construct and that the start node is the head of that branch.
 /// Additionally, all strongly connected components are assumed to have been normalized.
 pub struct Single {
-	branches: Vec<Branch>,
+	branches: Vec<(Set, usize)>,
 	tail: Set,
 	continuations: Vec<usize>,
 
 	temporary: Vec<usize>,
 	additional: Vec<usize>,
+
+	depth_first_searcher: DepthFirstSearcher,
 }
 
 impl Single {
@@ -32,12 +29,14 @@ impl Single {
 
 			temporary: Vec::new(),
 			additional: Vec::new(),
+
+			depth_first_searcher: DepthFirstSearcher::new(),
 		}
 	}
 
 	/// Returns the branch bodies of the restructured branch.
 	#[must_use]
-	pub fn branches_mut(&mut self) -> &mut Vec<Branch> {
+	pub fn branches_mut(&mut self) -> &mut Vec<(Set, usize)> {
 		&mut self.branches
 	}
 
@@ -53,22 +52,9 @@ impl Single {
 		&self.additional
 	}
 
-	fn is_in_tail<N: Predecessors>(
-		nodes: &N,
-		start: usize,
-		dominator_finder: &DominatorFinder,
-	) -> bool {
-		// We know `start` is part of the tail if it has more than one predecessor not dominated by itself.
-		let mut predecessors = nodes
-			.predecessors(start)
-			.filter(|&id| !dominator_finder.dominates(start, id).unwrap_or(false));
-
-		predecessors.next().is_none() || predecessors.next().is_some()
-	}
-
 	fn retain_branches_if<P: Fn(&Set) -> bool>(&mut self, pool: &mut Vec<Set>, predicate: P) {
 		// When `extract_if` is stable it should replace this.
-		self.branches.retain_mut(|Branch { set, .. }| {
+		self.branches.retain_mut(|(set, _)| {
 			if set.maximum() != 0 && !predicate(set) {
 				pool.push(std::mem::take(set));
 			}
@@ -77,43 +63,72 @@ impl Single {
 		});
 	}
 
-	fn find_destinations<N: Nodes>(
+	fn find_branch_successors<N: Successors>(
 		&mut self,
 		nodes: &N,
+		start: usize,
 		pool: &mut Vec<Set>,
-		head: usize,
-		dominator_finder: &DominatorFinder,
-	) {
-		self.retain_branches_if(pool, |_| false);
+	) -> Set {
+		let mut set = pool.pop().unwrap_or_default();
 
-		for start in nodes
-			.successors(head)
-			.filter(|&id| !Self::is_in_tail(nodes, id, dominator_finder))
-		{
-			let mut set = pool.pop().unwrap_or_default();
+		set.clear();
+		self.temporary.clear();
 
-			set.clear();
-
-			self.branches.push(Branch { start, set });
-		}
-	}
-
-	fn find_sets(&mut self, set: Slice, head: usize, dominator_finder: &DominatorFinder) {
-		self.tail.clear();
-
-		'dominated: for id in set {
-			for Branch { start, set } in &mut self.branches {
-				if dominator_finder.dominates(*start, id).unwrap_or(false) {
-					set.grow_insert(id);
-
-					continue 'dominated;
-				}
+		self.depth_first_searcher.run(nodes, start, |id, post| {
+			if !post {
+				return;
 			}
 
-			self.tail.grow_insert(id);
+			set.grow_insert(id);
+			self.temporary.push(id);
+		});
+
+		set
+	}
+
+	fn is_in_tail<N: Predecessors>(nodes: &N, start: usize, set: Slice) -> bool {
+		// We know `start` is part of the tail if it has more than one predecessor not dominated by itself.
+		let mut predecessors = nodes.predecessors(start).filter(|&id| !set.contains(id));
+
+		predecessors.next().is_none() || predecessors.next().is_some()
+	}
+
+	fn fill_tail_with(&mut self, set: Set, pool: &mut Vec<Set>) {
+		self.tail.extend(set.ascending());
+
+		pool.push(set);
+	}
+
+	fn fill_branch_with<N: Nodes>(&mut self, nodes: &N, mut set: Set, start: usize) {
+		let mut reverse_post_order = self.temporary.iter().rev();
+
+		reverse_post_order.next();
+
+		for &id in reverse_post_order {
+			if nodes.predecessors(id).any(|id| !set.contains(id)) {
+				set.remove(id);
+
+				self.tail.grow_insert(id);
+			}
 		}
 
-		self.tail.remove(head);
+		self.branches.push((set, start));
+	}
+
+	fn find_destinations<N: Nodes>(&mut self, nodes: &N, head: usize, pool: &mut Vec<Set>) {
+		self.retain_branches_if(pool, |_| false);
+
+		self.tail.clear();
+
+		for start in nodes.successors(head) {
+			let branch = self.find_branch_successors(nodes, start, pool);
+
+			if Self::is_in_tail(nodes, start, branch.as_slice()) {
+				self.fill_tail_with(branch, pool);
+			} else {
+				self.fill_branch_with(nodes, branch, start);
+			}
+		}
 	}
 
 	// We must ensure either all assignments are in the tail or none are.
@@ -142,7 +157,7 @@ impl Single {
 			return;
 		}
 
-		for Branch { set, .. } in &mut self.branches {
+		for (set, _) in &mut self.branches {
 			if set.remove(id).unwrap_or(false) {
 				break;
 			}
@@ -171,33 +186,29 @@ impl Single {
 		self.continuations = continuations;
 	}
 
-	fn find_continuations<N: Predecessors>(&mut self, nodes: &N, set: Slice) {
-		// We ignore predecessors outside the set as they are from parallel branches.
-		// We include successors to an empty branch as they are not in our set.
+	fn find_continuations<N: Predecessors>(&mut self, nodes: &N) {
 		self.continuations.clear();
-		self.continuations
-			.extend(self.tail.ascending().filter(|&tail| {
-				nodes
-					.predecessors(tail)
-					.any(|id| set.contains(id) && !self.tail.contains(id))
-			}));
+		self.continuations.extend(
+			self.tail
+				.ascending()
+				.filter(|&tail| nodes.predecessors(tail).any(|id| !self.tail.contains(id))),
+		);
 	}
 
-	fn trim_orphans_if_needed<N: Nodes>(&mut self, nodes: &N, pool: &mut Vec<Set>, set: Slice) {
+	fn trim_orphans_if_needed<N: Nodes>(&mut self, nodes: &N, pool: &mut Vec<Set>) {
 		if !self.has_orphan_assignments(nodes) {
 			return;
 		}
 
 		self.trim_orphan_assignments(nodes);
-
+		self.find_continuations(nodes);
 		self.retain_branches_if(pool, |set| !set.is_empty());
-		self.find_continuations(nodes, set);
 	}
 
-	fn find_set_of(branches: &mut [Branch], id: usize) -> Option<&mut Set> {
+	fn find_set_of(branches: &mut [(Set, usize)], id: usize) -> Option<&mut Set> {
 		branches
 			.iter_mut()
-			.find_map(|Branch { set, .. }| set.contains(id).then_some(set))
+			.find_map(|(set, _)| set.contains(id).then_some(set))
 	}
 
 	fn set_continuation_edges<N: Nodes>(
@@ -234,7 +245,7 @@ impl Single {
 	}
 
 	fn set_continuation_merges<N: Nodes>(&mut self, nodes: &mut N, continuation: usize) {
-		for Branch { set, .. } in &mut self.branches {
+		for (set, _) in &mut self.branches {
 			self.temporary.clear();
 			self.temporary.extend(
 				nodes
@@ -272,17 +283,20 @@ impl Single {
 	// We add dummy nodes to empty branches to ensure symmetry. This is done
 	// last as we don't always know which branches are empty at the start.
 	fn fill_empty_branches<N: Nodes>(&mut self, nodes: &mut N, head: usize) {
-		for tail in self.tail.ascending() {
-			let count = nodes.predecessors(tail).filter(|&id| id == head).count();
+		self.temporary.clear();
+		self.temporary.extend(nodes.successors(head));
 
-			for _ in 0..count {
-				let dummy = nodes.add_no_operation();
-
-				nodes.replace_edge(head, tail, dummy);
-				nodes.add_edge(dummy, tail);
-
-				self.additional.push(dummy);
+		for &id in &self.temporary {
+			if !self.tail.contains(id) {
+				continue;
 			}
+
+			let dummy = nodes.add_no_operation();
+
+			nodes.replace_edge(head, id, dummy);
+			nodes.add_edge(dummy, id);
+
+			self.additional.push(dummy);
 		}
 	}
 
@@ -291,28 +305,26 @@ impl Single {
 	pub fn run<N: Nodes>(
 		&mut self,
 		nodes: &mut N,
-		pool: &mut Vec<Set>,
-		set: Slice,
 		head: usize,
-		dominator_finder: &DominatorFinder,
+		set: Slice,
+		pool: &mut Vec<Set>,
 	) -> usize {
-		self.additional.clear();
+		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
 
-		self.find_destinations(nodes, pool, head, dominator_finder);
-		self.find_sets(set, head, dominator_finder);
-		self.find_continuations(nodes, set);
-		self.trim_orphans_if_needed(nodes, pool, set);
+		self.find_destinations(nodes, head, pool);
+		self.find_continuations(nodes);
+		self.trim_orphans_if_needed(nodes, pool);
 
-		let tail = if let &[tail] = self.continuations.as_slice() {
-			tail
+		let continuation = if let &[continuation] = self.continuations.as_slice() {
+			continuation
 		} else {
 			self.set_new_continuation(nodes, head)
 		};
 
-		self.set_continuation_merges(nodes, tail);
+		self.set_continuation_merges(nodes, continuation);
 		self.fill_empty_branches(nodes, head);
 
-		tail
+		continuation
 	}
 }
 
