@@ -48,61 +48,43 @@ impl DominatorFinder {
 		id_1
 	}
 
-	fn id_to_post_checked(&self, id: usize) -> Option<usize> {
-		self.reverse_post_searcher.id_to_post().get(id).copied()
-	}
+	fn look_up_post(&self, id: usize) -> Option<usize> {
+		let id_to_post = self.reverse_post_searcher.id_to_post();
 
-	fn has_any_dominator(&self, index: usize) -> bool {
-		self.dominators
-			.get(index)
-			.map_or(false, |&id| id != usize::MAX)
-	}
-
-	fn find_dominator<N: Predecessors>(&self, nodes: &N, id: usize) -> usize {
-		nodes
-			.predecessors(id)
-			.filter_map(|predecessor| self.id_to_post_checked(predecessor))
-			.filter(|predecessor| self.has_any_dominator(*predecessor))
-			.reduce(|dominator, predecessor| self.find_intersection(dominator, predecessor))
-			.expect("node should have a dominator")
+		id_to_post.get(id).copied().filter(|&post| {
+			self.dominators
+				.get(post)
+				.map_or(false, |&id| id != usize::MAX)
+		})
 	}
 
 	fn find_dominators<N: Predecessors>(&mut self, nodes: &N) {
-		loop {
-			let mut changed = false;
+		let mut post_to_id = self.reverse_post_searcher.post_to_id().iter().enumerate();
 
-			for &id in &self.reverse_post_searcher.post_to_id()[1..] {
-				let dominator = self.find_dominator(nodes, id);
-				let index = self.reverse_post_searcher.id_to_post()[id];
+		post_to_id.next();
 
-				if self.dominators[index] != dominator {
-					self.dominators[index] = dominator;
-
-					changed = true;
-				}
-			}
-
-			if !changed {
-				break;
-			}
+		// We do not need to repeat this step as all our loops are single entry
+		// and single exit, so they do not change the result.
+		for (index, &id) in post_to_id {
+			self.dominators[index] = nodes
+				.predecessors(id)
+				.filter_map(|predecessor| self.look_up_post(predecessor))
+				.reduce(|dominator, predecessor| self.find_intersection(dominator, predecessor))
+				.expect("node should have a dominator");
 		}
 	}
 
 	#[must_use]
 	pub fn contains(&self, id: usize) -> bool {
-		self.reverse_post_searcher
-			.id_to_post()
-			.get(id)
-			.map_or(false, |&id| id != usize::MAX)
+		self.look_up_post(id).is_some()
 	}
 
 	#[must_use]
 	pub fn dominates(&self, dominator: usize, id: usize) -> Option<bool> {
-		let &dominator = self.reverse_post_searcher.id_to_post().get(dominator)?;
-		let &id = self.reverse_post_searcher.id_to_post().get(id)?;
+		let dominator = self.look_up_post(dominator)?;
+		let id = self.look_up_post(id)?;
 
-		(dominator != usize::MAX && id != usize::MAX)
-			.then(|| self.find_intersection(dominator, id) == dominator)
+		Some(self.find_intersection(dominator, id) == dominator)
 	}
 
 	pub fn run<N, I>(&mut self, nodes: &N, set: I, start: usize)
