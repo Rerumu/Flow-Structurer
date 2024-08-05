@@ -2,7 +2,10 @@
 // "A Simple, Fast Dominance Algorithm",
 //     by Keith D. Cooper, Timothy J. Harvey, and Ken Kennedy
 
-use crate::nodes::{Predecessors, Successors};
+use crate::{
+	nodes::{Predecessors, Successors},
+	set::Slice,
+};
 
 use super::reverse_post_searcher::ReversePostSearcher;
 
@@ -87,10 +90,9 @@ impl DominatorFinder {
 		Some(self.find_intersection(dominator, id) == dominator)
 	}
 
-	pub fn run<N, I>(&mut self, nodes: &N, set: I, start: usize)
+	pub fn run<N>(&mut self, nodes: &N, set: Slice, start: usize)
 	where
 		N: Predecessors + Successors,
-		I: IntoIterator<Item = usize>,
 	{
 		self.reverse_post_searcher.restrict(set);
 		self.reverse_post_searcher.follow(nodes, start);

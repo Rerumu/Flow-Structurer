@@ -1,4 +1,7 @@
-use crate::{nodes::Successors, set::Set};
+use crate::{
+	nodes::Successors,
+	set::{Set, Slice},
+};
 
 struct Item {
 	id: usize,
@@ -50,9 +53,8 @@ impl DepthFirstSearcher {
 		&self.set
 	}
 
-	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
-		self.set.clear();
-		self.set.extend(set);
+	pub fn restrict(&mut self, set: Slice) {
+		self.set.clone_from_slice(set);
 	}
 
 	pub fn run<N, H>(&mut self, nodes: &N, start: usize, mut handler: H)

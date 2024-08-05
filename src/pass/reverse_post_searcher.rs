@@ -1,4 +1,4 @@
-use crate::nodes::Successors;
+use crate::{nodes::Successors, set::Slice};
 
 use super::depth_first_searcher::DepthFirstSearcher;
 
@@ -29,7 +29,7 @@ impl ReversePostSearcher {
 		&self.id_to_post
 	}
 
-	pub fn restrict<I: IntoIterator<Item = usize>>(&mut self, set: I) {
+	pub fn restrict(&mut self, set: Slice) {
 		self.depth_first_searcher.restrict(set);
 		self.post_to_id.clear();
 	}

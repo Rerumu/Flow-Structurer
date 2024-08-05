@@ -69,7 +69,7 @@ impl Bulk {
 		while let Some((mut branch, mut start)) = self.branches.pop() {
 			if Self::follow_until_fork(nodes, &mut branch, &mut start) {
 				if set.len() != last_count || !self.dominator_finder.contains(start) {
-					self.dominator_finder.run(nodes, branch.ascending(), start);
+					self.dominator_finder.run(nodes, branch.as_slice(), start);
 
 					last_count = set.len();
 				}

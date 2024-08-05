@@ -2,7 +2,7 @@
 // "Path-based depth-first search for strong and biconnected components",
 //     by Harold N. Gabow
 
-use crate::nodes::Successors;
+use crate::{nodes::Successors, set::Slice};
 
 use super::depth_first_searcher::DepthFirstSearcher;
 
@@ -68,11 +68,10 @@ impl StronglyConnectedFinder {
 		}
 	}
 
-	fn run_search<N, H, S>(&mut self, nodes: &N, set: S, mut handler: H)
+	fn run_search<N, H>(&mut self, nodes: &N, set: Slice, mut handler: H)
 	where
 		N: Successors,
 		H: FnMut(&[usize]),
-		S: IntoIterator<Item = usize>,
 	{
 		let mut depth_first_searcher = core::mem::take(&mut self.depth_first_searcher);
 
@@ -93,13 +92,12 @@ impl StronglyConnectedFinder {
 		self.depth_first_searcher = depth_first_searcher;
 	}
 
-	pub fn run<N, H, S>(&mut self, nodes: &N, set: S, handler: H)
+	pub fn run<N, H>(&mut self, nodes: &N, set: Slice, handler: H)
 	where
 		N: Successors,
 		H: FnMut(&[usize]),
-		S: IntoIterator<Item = usize> + Clone,
 	{
-		self.depth_first_searcher.restrict(set.clone());
+		self.depth_first_searcher.restrict(set);
 
 		self.fill_names();
 		self.run_search(nodes, set, handler);
