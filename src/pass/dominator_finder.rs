@@ -9,7 +9,6 @@ use crate::{
 
 use super::depth_first_searcher::DepthFirstSearcher;
 
-#[derive(Default)]
 pub struct DominatorFinder {
 	dominators: Vec<usize>,
 
@@ -142,5 +141,11 @@ impl DominatorFinder {
 		self.fill_id_to_post(capacity);
 		self.fill_dominators();
 		self.find_bulk_dominators(nodes);
+	}
+}
+
+impl Default for DominatorFinder {
+	fn default() -> Self {
+		Self::new()
 	}
 }

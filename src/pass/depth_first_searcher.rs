@@ -8,7 +8,6 @@ struct Item {
 	successors: std::ops::Range<usize>,
 }
 
-#[derive(Default)]
 pub struct DepthFirstSearcher {
 	items: Vec<Item>,
 	set: Set,
@@ -75,5 +74,11 @@ impl DepthFirstSearcher {
 				self.successors.truncate(item.successors.start);
 			}
 		}
+	}
+}
+
+impl Default for DepthFirstSearcher {
+	fn default() -> Self {
+		Self::new()
 	}
 }

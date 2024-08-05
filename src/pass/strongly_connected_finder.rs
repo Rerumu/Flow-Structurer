@@ -6,7 +6,6 @@ use crate::{nodes::Successors, set::Slice};
 
 use super::depth_first_searcher::DepthFirstSearcher;
 
-#[derive(Default)]
 pub struct StronglyConnectedFinder {
 	names: Vec<usize>,
 	path: Vec<usize>,
@@ -101,5 +100,11 @@ impl StronglyConnectedFinder {
 
 		self.fill_names();
 		self.run_search(nodes, set, handler);
+	}
+}
+
+impl Default for StronglyConnectedFinder {
+	fn default() -> Self {
+		Self::new()
 	}
 }
