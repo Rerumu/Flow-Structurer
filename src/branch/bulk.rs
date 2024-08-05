@@ -64,23 +64,29 @@ impl Bulk {
 	}
 
 	fn run_stack<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set, pool: &mut Vec<Set>) {
-		let mut last_count = 0;
-
 		while let Some((mut branch, mut start)) = self.branches.pop() {
 			if Self::follow_until_fork(nodes, &mut branch, &mut start) {
-				if set.len() != last_count || !self.dominator_finder.contains(start) {
-					self.dominator_finder.run(nodes, branch.as_slice(), start);
-
-					last_count = set.len();
-				}
-
 				self.run_single(nodes, branch.as_slice(), start, pool);
 
-				set.extend(self.single.additional().iter().copied());
+				for &id in self.single.additional() {
+					set.grow_insert(id);
+
+					// We must ensure that our additional nodes are added in the
+					// right order, otherwise this will fail with no predecessors.
+					self.dominator_finder.late_insert(nodes, id);
+				}
 			}
 
 			pool.push(branch);
 		}
+	}
+
+	fn queue_clone_from(&mut self, original: Slice, start: usize, pool: &mut Vec<Set>) {
+		let mut first = pool.pop().unwrap_or_default();
+
+		first.clone_from_slice(original);
+
+		self.branches.push((first, start));
 	}
 
 	/// Restructures the nodes in the given set.
@@ -91,12 +97,11 @@ impl Bulk {
 		start: usize,
 		pool: &mut Vec<Set>,
 	) {
-		let mut first = pool.pop().unwrap_or_default();
+		let original = set.as_slice();
 
-		first.clone_from(set);
+		self.dominator_finder.run(nodes, original, start);
 
-		self.branches.push((first, start));
-
+		self.queue_clone_from(original, start, pool);
 		self.run_stack(nodes, set, pool);
 	}
 }

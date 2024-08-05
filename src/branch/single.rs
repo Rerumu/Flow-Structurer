@@ -253,15 +253,23 @@ impl Single {
 		}
 	}
 
-	fn set_new_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
-		let continuation = nodes.add_selection(Flag::A);
+	fn find_unique_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
+		if let &[tail] = self.continuations.as_slice() {
+			self.set_continuation_merges(nodes, tail);
 
-		self.tail.grow_insert(continuation);
-		self.additional.push(continuation);
+			tail
+		} else {
+			let tail = nodes.add_selection(Flag::A);
 
-		self.set_continuation_edges(nodes, head, continuation);
+			self.tail.grow_insert(tail);
 
-		continuation
+			self.set_continuation_edges(nodes, head, tail);
+			self.set_continuation_merges(nodes, tail);
+
+			self.additional.push(tail);
+
+			tail
+		}
 	}
 
 	// We add dummy nodes to empty branches to ensure symmetry. This is done
@@ -298,13 +306,8 @@ impl Single {
 		self.find_continuations(nodes, set);
 		self.trim_orphans_if_needed(nodes, set, pool);
 
-		let tail = if let &[tail] = self.continuations.as_slice() {
-			tail
-		} else {
-			self.set_new_continuation(nodes, head)
-		};
+		let tail = self.find_unique_continuation(nodes, head);
 
-		self.set_continuation_merges(nodes, tail);
 		self.fill_empty_branches(nodes, head);
 
 		tail

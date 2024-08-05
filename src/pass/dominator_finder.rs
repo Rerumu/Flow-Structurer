@@ -7,13 +7,15 @@ use crate::{
 	set::Slice,
 };
 
-use super::reverse_post_searcher::ReversePostSearcher;
+use super::depth_first_searcher::DepthFirstSearcher;
 
 #[derive(Default)]
 pub struct DominatorFinder {
 	dominators: Vec<usize>,
 
-	reverse_post_searcher: ReversePostSearcher,
+	post_to_id: Vec<usize>,
+	id_to_post: Vec<usize>,
+	depth_first_searcher: DepthFirstSearcher,
 }
 
 impl DominatorFinder {
@@ -22,15 +24,46 @@ impl DominatorFinder {
 		Self {
 			dominators: Vec::new(),
 
-			reverse_post_searcher: ReversePostSearcher::new(),
+			post_to_id: Vec::new(),
+			id_to_post: Vec::new(),
+			depth_first_searcher: DepthFirstSearcher::new(),
+		}
+	}
+
+	fn fill_post_to_id<N>(&mut self, nodes: &N, set: Slice, start: usize) -> usize
+	where
+		N: Predecessors + Successors,
+	{
+		self.depth_first_searcher.restrict(set);
+		self.post_to_id.clear();
+
+		let mut capacity = 0;
+
+		self.depth_first_searcher.run(nodes, start, |id, post| {
+			if !post {
+				return;
+			}
+
+			self.post_to_id.push(id);
+
+			capacity = capacity.max(id + 1);
+		});
+
+		capacity
+	}
+
+	fn fill_id_to_post(&mut self, capacity: usize) {
+		self.id_to_post.clear();
+		self.id_to_post.resize(capacity, usize::MAX);
+
+		for (index, &id) in self.post_to_id.iter().rev().enumerate() {
+			self.id_to_post[id] = index;
 		}
 	}
 
 	fn fill_dominators(&mut self) {
-		let len = self.reverse_post_searcher.post_to_id().len();
-
 		self.dominators.clear();
-		self.dominators.resize(len, usize::MAX);
+		self.dominators.resize(self.post_to_id.len(), usize::MAX);
 
 		let entry = self.dominators.first_mut().expect("at least 1 node");
 
@@ -52,34 +85,44 @@ impl DominatorFinder {
 	}
 
 	fn look_up_post(&self, id: usize) -> Option<usize> {
-		let id_to_post = self.reverse_post_searcher.id_to_post();
-
-		id_to_post.get(id).copied().filter(|&post| {
+		self.id_to_post.get(id).copied().filter(|&post| {
 			self.dominators
 				.get(post)
 				.map_or(false, |&id| id != usize::MAX)
 		})
 	}
 
-	fn find_dominators<N: Predecessors>(&mut self, nodes: &N) {
-		let mut post_to_id = self.reverse_post_searcher.post_to_id().iter().enumerate();
+	fn find_dominator<N: Predecessors>(&self, nodes: &N, id: usize) -> usize {
+		nodes
+			.predecessors(id)
+			.filter_map(|predecessor| self.look_up_post(predecessor))
+			.reduce(|dominator, predecessor| self.find_intersection(dominator, predecessor))
+			.expect("node should have a dominator")
+	}
+
+	fn find_bulk_dominators<N: Predecessors>(&mut self, nodes: &N) {
+		let mut post_to_id = self.post_to_id.iter().rev().enumerate();
 
 		post_to_id.next();
 
 		// We do not need to repeat this step as all our loops are single entry
 		// and single exit, so they do not change the result.
 		for (index, &id) in post_to_id {
-			self.dominators[index] = nodes
-				.predecessors(id)
-				.filter_map(|predecessor| self.look_up_post(predecessor))
-				.reduce(|dominator, predecessor| self.find_intersection(dominator, predecessor))
-				.expect("node should have a dominator");
+			let dominator = self.find_dominator(nodes, id);
+
+			self.dominators[index] = dominator;
 		}
 	}
 
-	#[must_use]
-	pub fn contains(&self, id: usize) -> bool {
-		self.look_up_post(id).is_some()
+	pub fn late_insert<N: Predecessors>(&mut self, nodes: &N, id: usize) {
+		if self.id_to_post.len() <= id {
+			self.id_to_post.resize(id + 1, usize::MAX);
+		}
+
+		let dominator = self.find_dominator(nodes, id);
+
+		self.id_to_post[id] = self.dominators.len();
+		self.dominators.push(dominator);
 	}
 
 	#[must_use]
@@ -94,11 +137,10 @@ impl DominatorFinder {
 	where
 		N: Predecessors + Successors,
 	{
-		self.reverse_post_searcher.restrict(set);
-		self.reverse_post_searcher.follow(nodes, start);
-		self.reverse_post_searcher.finalize();
+		let capacity = self.fill_post_to_id(nodes, set, start);
 
+		self.fill_id_to_post(capacity);
 		self.fill_dominators();
-		self.find_dominators(nodes);
+		self.find_bulk_dominators(nodes);
 	}
 }
