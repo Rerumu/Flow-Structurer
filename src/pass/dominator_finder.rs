@@ -33,7 +33,7 @@ impl DominatorFinder {
 	where
 		N: Predecessors + Successors,
 	{
-		self.depth_first_searcher.restrict(set);
+		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
 		self.post_to_id.clear();
 
 		let mut capacity = 0;

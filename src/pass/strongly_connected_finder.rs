@@ -27,7 +27,7 @@ impl StronglyConnectedFinder {
 	}
 
 	fn fill_names(&mut self) {
-		let mut descending = self.depth_first_searcher.set().descending();
+		let mut descending = self.depth_first_searcher.nodes().descending();
 		let last = descending.next().map_or(0, |index| index + 1);
 
 		self.names.clear();
@@ -96,7 +96,7 @@ impl StronglyConnectedFinder {
 		N: Successors,
 		H: FnMut(&[usize]),
 	{
-		self.depth_first_searcher.restrict(set);
+		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
 
 		self.fill_names();
 		self.run_search(nodes, set, handler);
