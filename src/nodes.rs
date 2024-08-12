@@ -2,8 +2,20 @@ pub trait Predecessors {
 	fn predecessors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
 }
 
+impl<T: Predecessors> Predecessors for &T {
+	fn predecessors(&self, id: usize) -> impl Iterator<Item = usize> + '_ {
+		(**self).predecessors(id)
+	}
+}
+
 pub trait Successors {
 	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_;
+}
+
+impl<T: Successors> Successors for &T {
+	fn successors(&self, id: usize) -> impl Iterator<Item = usize> + '_ {
+		(**self).successors(id)
+	}
 }
 
 /// A reserved flag for synthetic control flow nodes.
