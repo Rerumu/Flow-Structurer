@@ -59,6 +59,10 @@ impl DepthFirstSearcher {
 		N: Successors,
 		H: FnMut(usize, bool),
 	{
+		if !self.nodes.contains(start) {
+			return;
+		}
+
 		self.queue_visit(nodes, start, &mut handler);
 
 		while let Some(mut visit) = self.visits.pop() {
