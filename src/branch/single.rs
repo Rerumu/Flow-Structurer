@@ -90,7 +90,7 @@ impl Single {
 		// We know `start` is part of the tail if it has more than one predecessor not dominated by itself.
 		let mut predecessors = nodes.predecessors(start).filter(|&id| !set.contains(id));
 
-		predecessors.next().is_none() || predecessors.next().is_some()
+		predecessors.next().is_some() && predecessors.next().is_some()
 	}
 
 	fn fill_tail_with(&mut self, set: Set, pool: &mut Vec<Set>) {
