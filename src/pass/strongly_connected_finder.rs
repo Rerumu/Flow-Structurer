@@ -1,15 +1,17 @@
 // Resources:
-// "Path-based depth-first search for strong and biconnected components",
-//     by Harold N. Gabow
+// "Kosaraju's Strongly Connected Components",
+//     by S. Rao Kosaraju
 
-use crate::{nodes::Successors, set::Slice};
+use crate::{
+	nodes::{Predecessors, Successors},
+	set::Slice,
+};
 
-use super::depth_first_searcher::DepthFirstSearcher;
+use super::{depth_first_searcher::DepthFirstSearcher, inverted::Inverted};
 
 pub struct StronglyConnectedFinder {
-	names: Vec<usize>,
-	path: Vec<usize>,
-	stack: Vec<usize>,
+	found: Vec<usize>,
+	post: Vec<usize>,
 
 	depth_first_searcher: DepthFirstSearcher,
 }
@@ -18,88 +20,57 @@ impl StronglyConnectedFinder {
 	#[must_use]
 	pub const fn new() -> Self {
 		Self {
-			names: Vec::new(),
-			path: Vec::new(),
-			stack: Vec::new(),
+			found: Vec::new(),
+			post: Vec::new(),
 
 			depth_first_searcher: DepthFirstSearcher::new(),
 		}
 	}
 
-	fn fill_names(&mut self) {
-		let mut descending = self.depth_first_searcher.nodes().descending();
-		let last = descending.next().map_or(0, |index| index + 1);
-
-		self.names.clear();
-		self.names.resize(last, usize::MAX);
-	}
-
-	fn on_pre_order<N: Successors>(&mut self, nodes: &N, id: usize) {
-		let index = self.path.len();
-
-		self.names[id] = index;
-
-		self.path.push(id);
-		self.stack.push(index);
-
-		for successor in nodes.successors(id).filter(|&id| id != usize::MAX) {
-			if let Some(&index) = self.names.get(successor) {
-				let last = self.stack.iter().rposition(|&id| id <= index).unwrap();
-
-				self.stack.truncate(last + 1);
-			}
-		}
-	}
-
-	fn on_post_order(&mut self, id: usize) -> Option<usize> {
-		let index = self.stack.pop().unwrap();
-
-		if self.names[id] == index {
-			for &id in &self.path[index..] {
-				self.names[id] = usize::MAX;
+	fn run_search<N: Successors>(&mut self, nodes: &N, start: usize) {
+		self.depth_first_searcher.run(nodes, start, |id, post| {
+			if !post {
+				return;
 			}
 
-			Some(index)
-		} else {
-			self.stack.push(index);
-
-			None
-		}
+			self.found.push(id);
+		});
 	}
 
-	fn run_search<N, H>(&mut self, nodes: &N, set: Slice, mut handler: H)
-	where
-		N: Successors,
-		H: FnMut(&[usize]),
-	{
-		let mut depth_first_searcher = core::mem::take(&mut self.depth_first_searcher);
+	fn find_post_order<N: Successors>(&mut self, nodes: &N, set: Slice) {
+		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
+		self.found.clear();
 
-		for id in set {
-			depth_first_searcher.run(nodes, id, |id, post| {
-				if post {
-					if let Some(index) = self.on_post_order(id) {
-						handler(&self.path[index..]);
-
-						self.path.truncate(index);
-					}
-				} else {
-					self.on_pre_order(nodes, id);
-				}
-			});
+		for start in set {
+			self.run_search(nodes, start);
 		}
 
-		self.depth_first_searcher = depth_first_searcher;
+		std::mem::swap(&mut self.post, &mut self.found);
 	}
 
-	pub fn run<N, H>(&mut self, nodes: &N, set: Slice, handler: H)
+	fn find_strongly_connected<N, H>(&mut self, nodes: &N, set: Slice, mut handler: H)
 	where
 		N: Successors,
 		H: FnMut(&[usize]),
 	{
 		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
 
-		self.fill_names();
-		self.run_search(nodes, set, handler);
+		while let Some(start) = self.post.pop() {
+			self.found.clear();
+
+			self.run_search(nodes, start);
+
+			handler(&self.found);
+		}
+	}
+
+	pub fn run<N, H>(&mut self, nodes: &N, set: Slice, handler: H)
+	where
+		N: Predecessors + Successors,
+		H: FnMut(&[usize]),
+	{
+		self.find_post_order(nodes, set);
+		self.find_strongly_connected(&Inverted(nodes), set, handler);
 	}
 }
 

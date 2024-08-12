@@ -1,5 +1,5 @@
 use crate::{
-	nodes::{Nodes, Successors},
+	nodes::{Nodes, Predecessors, Successors},
 	pass::strongly_connected_finder::StronglyConnectedFinder,
 	set::{Set, Slice},
 };
@@ -29,12 +29,12 @@ impl Bulk {
 		}
 	}
 
-	fn find_strongly_connected<N: Successors>(&mut self, nodes: &N, set: Slice) {
+	fn find_strongly_connected<N: Predecessors + Successors>(&mut self, nodes: &N, set: Slice) {
 		self.strongly_connected_finder.run(nodes, set, |list| {
 			let repeats = if let &[first] = list {
 				nodes.successors(first).any(|id| id == first)
 			} else {
-				true
+				!list.is_empty()
 			};
 
 			if repeats {
