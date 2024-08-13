@@ -33,9 +33,9 @@ impl DepthFirstSearcher {
 		}
 
 		let start = self.successors.len();
+		let successors = nodes.successors(id).filter(|&id| self.nodes.contains(id));
 
-		self.successors.extend(nodes.successors(id));
-
+		self.successors.extend(successors);
 		self.visits.push(Visit {
 			id,
 			successors: start..self.successors.len(),
