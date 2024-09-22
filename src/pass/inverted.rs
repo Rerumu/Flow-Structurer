@@ -1,4 +1,4 @@
-use crate::nodes::{Predecessors, Successors};
+use crate::view::{Predecessors, Successors};
 
 pub struct Inverted<T>(pub T);
 

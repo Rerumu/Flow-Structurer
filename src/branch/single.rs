@@ -1,7 +1,7 @@
 use crate::{
-	nodes::{Flag, Nodes, Predecessors, Successors},
 	pass::depth_first_searcher::DepthFirstSearcher,
 	set::{Set, Slice},
+	view::{Flag, Predecessors, Successors, View},
 };
 
 /// This structure implements a single pass of this algorithm. It assumes that the set
@@ -65,7 +65,7 @@ impl Single {
 
 	fn find_branch_successors<N: Successors>(
 		&mut self,
-		nodes: &N,
+		view: &N,
 		start: usize,
 		pool: &mut Vec<Set>,
 	) -> Set {
@@ -74,7 +74,7 @@ impl Single {
 		set.clear();
 		self.temporary.clear();
 
-		self.depth_first_searcher.run(nodes, start, |id, post| {
+		self.depth_first_searcher.run(view, start, |id, post| {
 			if !post {
 				return;
 			}
@@ -86,9 +86,9 @@ impl Single {
 		set
 	}
 
-	fn is_in_tail<N: Predecessors>(nodes: &N, start: usize, set: Slice) -> bool {
+	fn is_in_tail<N: Predecessors>(view: &N, start: usize, set: Slice) -> bool {
 		// We know `start` is part of the tail if it has more than one predecessor not dominated by itself.
-		let mut predecessors = nodes.predecessors(start).filter(|&id| !set.contains(id));
+		let mut predecessors = view.predecessors(start).filter(|&id| !set.contains(id));
 
 		predecessors.next().is_some() && predecessors.next().is_some()
 	}
@@ -99,13 +99,13 @@ impl Single {
 		pool.push(set);
 	}
 
-	fn fill_branch_with<N: Nodes>(&mut self, nodes: &N, mut set: Set, start: usize) {
+	fn fill_branch_with<N: View>(&mut self, view: &N, mut set: Set, start: usize) {
 		let mut reverse_post_order = self.temporary.iter().rev();
 
 		reverse_post_order.next();
 
 		for &id in reverse_post_order {
-			if nodes.predecessors(id).any(|id| !set.contains(id)) {
+			if view.predecessors(id).any(|id| !set.contains(id)) {
 				set.remove(id);
 
 				self.tail.grow_insert(id);
@@ -115,30 +115,30 @@ impl Single {
 		self.branches.push((set, start));
 	}
 
-	fn find_destinations<N: Nodes>(&mut self, nodes: &N, head: usize, pool: &mut Vec<Set>) {
+	fn find_destinations<N: View>(&mut self, view: &N, head: usize, pool: &mut Vec<Set>) {
 		self.retain_branches_if(pool, |_| false);
 
 		self.tail.clear();
 
-		for start in nodes.successors(head) {
-			let branch = self.find_branch_successors(nodes, start, pool);
+		for start in view.successors(head) {
+			let branch = self.find_branch_successors(view, start, pool);
 
-			if Self::is_in_tail(nodes, start, branch.as_slice()) {
+			if Self::is_in_tail(view, start, branch.as_slice()) {
 				self.fill_tail_with(branch, pool);
 			} else {
-				self.fill_branch_with(nodes, branch, start);
+				self.fill_branch_with(view, branch, start);
 			}
 		}
 	}
 
 	// We must ensure either all assignments are in the tail or none are.
-	fn has_orphan_assignments<N: Nodes>(&self, nodes: &N) -> bool {
+	fn has_orphan_assignments<N: View>(&self, view: &N) -> bool {
 		let mut has_in_tail = false;
 		let mut has_in_branch = false;
 
 		for &id in &self.continuations {
-			for id in nodes.predecessors(id) {
-				if nodes.has_assignment(id, Flag::A) {
+			for id in view.predecessors(id) {
+				if view.has_assignment(id, Flag::A) {
 					has_in_tail |= self.tail.contains(id);
 					has_in_branch |= !self.tail.contains(id);
 
@@ -164,18 +164,17 @@ impl Single {
 		}
 	}
 
-	fn trim_orphan_assignments<N: Nodes>(&mut self, nodes: &N) {
+	fn trim_orphan_assignments<N: View>(&mut self, view: &N) {
 		let continuations = std::mem::take(&mut self.continuations);
 
 		for predecessor in continuations.iter().flat_map(|&id| {
-			nodes
-				.predecessors(id)
-				.filter(|&id| nodes.has_assignment(id, Flag::A))
+			view.predecessors(id)
+				.filter(|&id| view.has_assignment(id, Flag::A))
 		}) {
-			let mut predecessors = nodes.predecessors(predecessor);
+			let mut predecessors = view.predecessors(predecessor);
 
 			if let Some(destination) = predecessors.next() {
-				if predecessors.next().is_none() && nodes.has_assignment(destination, Flag::C) {
+				if predecessors.next().is_none() && view.has_assignment(destination, Flag::C) {
 					self.set_tail_if_needed(destination);
 				}
 			}
@@ -186,22 +185,22 @@ impl Single {
 		self.continuations = continuations;
 	}
 
-	fn find_continuations<N: Predecessors>(&mut self, nodes: &N) {
+	fn find_continuations<N: Predecessors>(&mut self, view: &N) {
 		self.continuations.clear();
 		self.continuations.extend(
 			self.tail
 				.ascending()
-				.filter(|&tail| nodes.predecessors(tail).any(|id| !self.tail.contains(id))),
+				.filter(|&tail| view.predecessors(tail).any(|id| !self.tail.contains(id))),
 		);
 	}
 
-	fn trim_orphans_if_needed<N: Nodes>(&mut self, nodes: &N, pool: &mut Vec<Set>) {
-		if !self.has_orphan_assignments(nodes) {
+	fn trim_orphans_if_needed<N: View>(&mut self, view: &N, pool: &mut Vec<Set>) {
+		if !self.has_orphan_assignments(view) {
 			return;
 		}
 
-		self.trim_orphan_assignments(nodes);
-		self.find_continuations(nodes);
+		self.trim_orphan_assignments(view);
+		self.find_continuations(view);
 		self.retain_branches_if(pool, |set| !set.is_empty());
 	}
 
@@ -211,56 +210,50 @@ impl Single {
 			.find_map(|(set, _)| set.contains(id).then_some(set))
 	}
 
-	fn set_continuation_edges<N: Nodes>(
-		&mut self,
-		nodes: &mut N,
-		head: usize,
-		continuation: usize,
-	) {
+	fn set_continuation_edges<N: View>(&mut self, view: &mut N, head: usize, continuation: usize) {
 		for (index, &tail) in self.continuations.iter().enumerate() {
 			self.temporary.clear();
-			self.temporary.extend(nodes.predecessors(tail));
+			self.temporary.extend(view.predecessors(tail));
 
 			for &predecessor in &self.temporary {
 				let branch = if let Some(set) = Self::find_set_of(&mut self.branches, predecessor) {
-					let branch = nodes.add_assignment(Flag::A, index);
+					let branch = view.add_assignment(Flag::A, index);
 
 					set.grow_insert(branch);
 
 					branch
 				} else if predecessor == head {
-					nodes.add_assignment(Flag::A, index)
+					view.add_assignment(Flag::A, index)
 				} else {
 					continue;
 				};
 
-				nodes.replace_edge(predecessor, tail, branch);
-				nodes.add_edge(branch, continuation);
+				view.replace_edge(predecessor, tail, branch);
+				view.add_edge(branch, continuation);
 
 				self.additional.push(branch);
 			}
 
-			nodes.add_edge(continuation, tail);
+			view.add_edge(continuation, tail);
 		}
 	}
 
-	fn set_continuation_merges<N: Nodes>(&mut self, nodes: &mut N, continuation: usize) {
+	fn set_continuation_merges<N: View>(&mut self, view: &mut N, continuation: usize) {
 		for (set, _) in &mut self.branches {
 			self.temporary.clear();
 			self.temporary.extend(
-				nodes
-					.predecessors(continuation)
+				view.predecessors(continuation)
 					.filter(|&id| set.contains(id)),
 			);
 
 			if self.temporary.len() > 1 {
-				let dummy = nodes.add_no_operation();
+				let dummy = view.add_no_operation();
 
 				for &predecessor in &self.temporary {
-					nodes.replace_edge(predecessor, continuation, dummy);
+					view.replace_edge(predecessor, continuation, dummy);
 				}
 
-				nodes.add_edge(dummy, continuation);
+				view.add_edge(dummy, continuation);
 
 				set.grow_insert(dummy);
 
@@ -269,32 +262,32 @@ impl Single {
 		}
 	}
 
-	fn set_new_continuation<N: Nodes>(&mut self, nodes: &mut N, head: usize) -> usize {
-		let continuation = nodes.add_selection(Flag::A);
+	fn set_new_continuation<N: View>(&mut self, view: &mut N, head: usize) -> usize {
+		let continuation = view.add_selection(Flag::A);
 
 		self.tail.grow_insert(continuation);
 		self.additional.push(continuation);
 
-		self.set_continuation_edges(nodes, head, continuation);
+		self.set_continuation_edges(view, head, continuation);
 
 		continuation
 	}
 
 	// We add dummy nodes to empty branches to ensure symmetry. This is done
 	// last as we don't always know which branches are empty at the start.
-	fn fill_empty_branches<N: Nodes>(&mut self, nodes: &mut N, head: usize) {
+	fn fill_empty_branches<N: View>(&mut self, view: &mut N, head: usize) {
 		self.temporary.clear();
-		self.temporary.extend(nodes.successors(head));
+		self.temporary.extend(view.successors(head));
 
 		for &id in &self.temporary {
 			if !self.tail.contains(id) {
 				continue;
 			}
 
-			let dummy = nodes.add_no_operation();
+			let dummy = view.add_no_operation();
 
-			nodes.replace_edge(head, id, dummy);
-			nodes.add_edge(dummy, id);
+			view.replace_edge(head, id, dummy);
+			view.add_edge(dummy, id);
 
 			self.additional.push(dummy);
 		}
@@ -302,27 +295,27 @@ impl Single {
 
 	/// Applies the restructuring algorithm to the given set of nodes starting at the head.
 	/// The end node of the structured branch is returned, if applicable.
-	pub fn run<N: Nodes>(
+	pub fn run<N: View>(
 		&mut self,
-		nodes: &mut N,
+		view: &mut N,
 		head: usize,
 		set: Slice,
 		pool: &mut Vec<Set>,
 	) -> usize {
 		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
 
-		self.find_destinations(nodes, head, pool);
-		self.find_continuations(nodes);
-		self.trim_orphans_if_needed(nodes, pool);
+		self.find_destinations(view, head, pool);
+		self.find_continuations(view);
+		self.trim_orphans_if_needed(view, pool);
 
 		let continuation = if let &[continuation] = self.continuations.as_slice() {
 			continuation
 		} else {
-			self.set_new_continuation(nodes, head)
+			self.set_new_continuation(view, head)
 		};
 
-		self.set_continuation_merges(nodes, continuation);
-		self.fill_empty_branches(nodes, head);
+		self.set_continuation_merges(view, continuation);
+		self.fill_empty_branches(view, head);
 
 		continuation
 	}

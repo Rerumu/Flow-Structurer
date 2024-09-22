@@ -2,7 +2,7 @@
 
 use flow_structurer::{
 	branch::Branch,
-	nodes::{Flag, Nodes, Successors},
+	view::{Flag, Successors, View},
 };
 use libfuzzer_sys::fuzz_target;
 

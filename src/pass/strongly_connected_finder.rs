@@ -3,8 +3,8 @@
 //     by S. Rao Kosaraju
 
 use crate::{
-	nodes::{Predecessors, Successors},
 	set::Slice,
+	view::{Predecessors, Successors},
 };
 
 use super::{depth_first_searcher::DepthFirstSearcher, inverted::Inverted};
@@ -27,8 +27,8 @@ impl StronglyConnectedFinder {
 		}
 	}
 
-	fn run_search<N: Successors>(&mut self, nodes: &N, start: usize) {
-		self.depth_first_searcher.run(nodes, start, |id, post| {
+	fn run_search<N: Successors>(&mut self, view: &N, start: usize) {
+		self.depth_first_searcher.run(view, start, |id, post| {
 			if !post {
 				return;
 			}
@@ -37,18 +37,18 @@ impl StronglyConnectedFinder {
 		});
 	}
 
-	fn find_post_order<N: Successors>(&mut self, nodes: &N, set: Slice) {
+	fn find_post_order<N: Successors>(&mut self, view: &N, set: Slice) {
 		self.depth_first_searcher.nodes_mut().clone_from_slice(set);
 		self.found.clear();
 
 		for start in set {
-			self.run_search(nodes, start);
+			self.run_search(view, start);
 		}
 
 		std::mem::swap(&mut self.post, &mut self.found);
 	}
 
-	fn find_strongly_connected<N, H>(&mut self, nodes: &N, set: Slice, mut handler: H)
+	fn find_strongly_connected<N, H>(&mut self, view: &N, set: Slice, mut handler: H)
 	where
 		N: Successors,
 		H: FnMut(&[usize]),
@@ -58,19 +58,19 @@ impl StronglyConnectedFinder {
 		while let Some(start) = self.post.pop() {
 			self.found.clear();
 
-			self.run_search(nodes, start);
+			self.run_search(view, start);
 
 			handler(&self.found);
 		}
 	}
 
-	pub fn run<N, H>(&mut self, nodes: &N, set: Slice, handler: H)
+	pub fn run<N, H>(&mut self, view: &N, set: Slice, handler: H)
 	where
 		N: Predecessors + Successors,
 		H: FnMut(&[usize]),
 	{
-		self.find_post_order(nodes, set);
-		self.find_strongly_connected(&Inverted(nodes), set, handler);
+		self.find_post_order(view, set);
+		self.find_strongly_connected(&Inverted(view), set, handler);
 	}
 }
 

@@ -1,4 +1,4 @@
-use flow_structurer::nodes::{Flag, Nodes, Predecessors, Successors};
+use flow_structurer::view::{Flag, Predecessors, Successors, View};
 
 #[derive(Clone, Copy)]
 pub enum Statement {
@@ -134,7 +134,7 @@ impl Successors for List {
 	}
 }
 
-impl Nodes for List {
+impl View for List {
 	fn has_assignment(&self, id: usize, flag: Flag) -> bool {
 		matches!(self.nodes[id].statement, Statement::Assign { flag: other, .. } if other == flag)
 	}

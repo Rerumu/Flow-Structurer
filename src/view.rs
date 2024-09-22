@@ -27,7 +27,7 @@ pub enum Flag {
 }
 
 /// A view into a control flow graph.
-pub trait Nodes: Predecessors + Successors {
+pub trait View: Predecessors + Successors {
 	/// Returns whether the node has an assignment to a flag.
 	fn has_assignment(&self, id: usize, flag: Flag) -> bool;
 

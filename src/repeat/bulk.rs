@@ -1,7 +1,7 @@
 use crate::{
-	nodes::{Nodes, Predecessors, Successors},
 	pass::strongly_connected_finder::StronglyConnectedFinder,
 	set::{Set, Slice},
+	view::{Predecessors, Successors, View},
 };
 
 use super::single::Single;
@@ -29,10 +29,10 @@ impl Bulk {
 		}
 	}
 
-	fn find_strongly_connected<N: Predecessors + Successors>(&mut self, nodes: &N, set: Slice) {
-		self.strongly_connected_finder.run(nodes, set, |list| {
+	fn find_strongly_connected<N: Predecessors + Successors>(&mut self, view: &N, set: Slice) {
+		self.strongly_connected_finder.run(view, set, |list| {
 			let repeats = if let &[first] = list {
-				nodes.successors(first).any(|id| id == first)
+				view.successors(first).any(|id| id == first)
 			} else {
 				!list.is_empty()
 			};
@@ -49,15 +49,15 @@ impl Bulk {
 	}
 
 	/// Restructures the nodes in the given set.
-	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: &mut Set) {
-		self.find_strongly_connected(nodes, set.as_slice());
+	pub fn run<N: View>(&mut self, view: &mut N, set: &mut Set) {
+		self.find_strongly_connected(view, set.as_slice());
 
 		while let Some(mut child) = self.found.pop() {
-			let start = self.single.run(nodes, child.as_slice());
+			let start = self.single.run(view, child.as_slice());
 
 			child.remove(start);
 
-			self.find_strongly_connected(nodes, child.as_slice());
+			self.find_strongly_connected(view, child.as_slice());
 
 			set.extend(self.single.additional().iter().copied());
 

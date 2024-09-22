@@ -1,6 +1,6 @@
 use crate::{
-	nodes::{Flag, Nodes, Predecessors, Successors},
 	set::Slice,
+	view::{Flag, Predecessors, Successors, View},
 };
 
 /// This structure implements a single pass of this algorithm. It assumes that the set
@@ -33,106 +33,106 @@ impl Single {
 		&self.additional
 	}
 
-	fn find_entries_and_exits<N: Predecessors + Successors>(&mut self, nodes: &N, set: Slice) {
+	fn find_entries_and_exits<N: Predecessors + Successors>(&mut self, view: &N, set: Slice) {
 		self.entries.clear();
 		self.exits.clear();
 
 		for id in set {
-			if nodes.predecessors(id).any(|id| !set.contains(id)) {
+			if view.predecessors(id).any(|id| !set.contains(id)) {
 				self.entries.push(id);
 			}
 
 			self.exits
-				.extend(nodes.successors(id).filter(|&id| !set.contains(id)));
+				.extend(view.successors(id).filter(|&id| !set.contains(id)));
 		}
 
 		self.exits.sort_unstable();
 		self.exits.dedup();
 	}
 
-	fn set_new_start<N: Nodes>(&mut self, nodes: &mut N) -> usize {
-		let start = nodes.add_selection(Flag::C);
+	fn set_new_start<N: View>(&mut self, view: &mut N) -> usize {
+		let start = view.add_selection(Flag::C);
 
 		self.additional.push(start);
 
 		for (index, &entry) in self.entries.iter().enumerate() {
 			self.temporaries.clear();
-			self.temporaries.extend(nodes.predecessors(entry));
+			self.temporaries.extend(view.predecessors(entry));
 
 			for &predecessor in &self.temporaries {
-				let branch = nodes.add_assignment(Flag::C, index);
+				let branch = view.add_assignment(Flag::C, index);
 
-				nodes.replace_edge(predecessor, entry, branch);
-				nodes.add_edge(branch, start);
+				view.replace_edge(predecessor, entry, branch);
+				view.add_edge(branch, start);
 
 				self.additional.push(branch);
 			}
 
-			nodes.add_edge(start, entry);
+			view.add_edge(start, entry);
 		}
 
 		start
 	}
 
-	fn find_or_set_start<N: Nodes>(&mut self, nodes: &mut N) -> usize {
+	fn find_or_set_start<N: View>(&mut self, view: &mut N) -> usize {
 		if let &[start] = self.entries.as_slice() {
 			start
 		} else {
-			self.set_new_start(nodes)
+			self.set_new_start(view)
 		}
 	}
 
-	fn set_new_end<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
-		let end = nodes.add_selection(Flag::C);
+	fn set_new_end<N: View>(&mut self, view: &mut N, set: Slice) -> usize {
+		let end = view.add_selection(Flag::C);
 
 		self.additional.push(end);
 
 		for (index, &exit) in self.exits.iter().enumerate() {
 			self.temporaries.clear();
 			self.temporaries
-				.extend(nodes.predecessors(exit).filter(|&id| set.contains(id)));
+				.extend(view.predecessors(exit).filter(|&id| set.contains(id)));
 
 			for &predecessor in &self.temporaries {
-				let branch = nodes.add_assignment(Flag::C, index);
+				let branch = view.add_assignment(Flag::C, index);
 
-				nodes.replace_edge(predecessor, exit, branch);
-				nodes.add_edge(branch, end);
+				view.replace_edge(predecessor, exit, branch);
+				view.add_edge(branch, end);
 
 				self.additional.push(branch);
 			}
 
-			nodes.add_edge(end, exit);
+			view.add_edge(end, exit);
 		}
 
 		end
 	}
 
-	fn find_or_set_end<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
+	fn find_or_set_end<N: View>(&mut self, view: &mut N, set: Slice) -> usize {
 		if let &[end] = self.exits.as_slice() {
 			end
 		} else {
-			self.set_new_end(nodes, set)
+			self.set_new_end(view, set)
 		}
 	}
 
-	fn in_set_or_inserted<N: Predecessors>(nodes: &N, set: Slice, id: usize) -> bool {
+	fn in_set_or_inserted<N: Predecessors>(view: &N, set: Slice, id: usize) -> bool {
 		// Since our new nodes are not automatically inserted into `set`,
 		// we must also check that our predecessors are in the set just in case.
-		set.contains(id) || nodes.predecessors(id).any(|id| set.contains(id))
+		set.contains(id) || view.predecessors(id).any(|id| set.contains(id))
 	}
 
-	fn in_set_acyclic<N: Predecessors>(nodes: &N, set: Slice, parent: usize, id: usize) -> bool {
-		parent != id && Self::in_set_or_inserted(nodes, set, id)
+	fn in_set_acyclic<N: Predecessors>(view: &N, set: Slice, parent: usize, id: usize) -> bool {
+		parent != id && Self::in_set_or_inserted(view, set, id)
 	}
 
-	fn has_one_latch<N: Predecessors>(nodes: &N, set: Slice, start: usize, end: usize) -> bool {
-		let mut repetitions = nodes
+	fn has_one_latch<N: Predecessors>(view: &N, set: Slice, start: usize, end: usize) -> bool {
+		let mut repetitions = view
 			.predecessors(start)
-			.filter(|&id| Self::in_set_or_inserted(nodes, set, id));
+			.filter(|&id| Self::in_set_or_inserted(view, set, id));
 
-		let mut exits = nodes
+		let mut exits = view
 			.predecessors(end)
-			.filter(|&id| Self::in_set_acyclic(nodes, set, end, id));
+			.filter(|&id| Self::in_set_acyclic(view, set, end, id));
 
 		matches!(
 			(
@@ -145,66 +145,64 @@ impl Single {
 		)
 	}
 
-	fn set_break<N: Nodes>(&mut self, nodes: &mut N, set: Slice, latch: usize, end: usize) {
+	fn set_break<N: View>(&mut self, view: &mut N, set: Slice, latch: usize, end: usize) {
 		self.temporaries.clear();
 		self.temporaries.extend(
-			nodes
-				.predecessors(end)
-				.filter(|&id| Self::in_set_acyclic(nodes, set, end, id)),
+			view.predecessors(end)
+				.filter(|&id| Self::in_set_acyclic(view, set, end, id)),
 		);
 
 		for &exit in &self.temporaries {
-			let branch = nodes.add_assignment(Flag::B, 0);
+			let branch = view.add_assignment(Flag::B, 0);
 
-			nodes.replace_edge(exit, end, branch);
-			nodes.add_edge(branch, latch);
+			view.replace_edge(exit, end, branch);
+			view.add_edge(branch, latch);
 
 			self.additional.push(branch);
 		}
 	}
 
-	fn set_continue<N: Nodes>(&mut self, nodes: &mut N, set: Slice, latch: usize, start: usize) {
+	fn set_continue<N: View>(&mut self, view: &mut N, set: Slice, latch: usize, start: usize) {
 		self.temporaries.clear();
 		self.temporaries.extend(
-			nodes
-				.predecessors(start)
-				.filter(|&id| Self::in_set_or_inserted(nodes, set, id)),
+			view.predecessors(start)
+				.filter(|&id| Self::in_set_or_inserted(view, set, id)),
 		);
 
 		for &entry in &self.temporaries {
-			let branch = nodes.add_assignment(Flag::B, 1);
+			let branch = view.add_assignment(Flag::B, 1);
 
-			nodes.replace_edge(entry, start, branch);
-			nodes.add_edge(branch, latch);
+			view.replace_edge(entry, start, branch);
+			view.add_edge(branch, latch);
 
 			self.additional.push(branch);
 		}
 	}
 
-	fn set_new_latch<N: Nodes>(&mut self, nodes: &mut N, set: Slice, start: usize, end: usize) {
-		let latch = nodes.add_selection(Flag::B);
+	fn set_new_latch<N: View>(&mut self, view: &mut N, set: Slice, start: usize, end: usize) {
+		let latch = view.add_selection(Flag::B);
 
 		self.additional.push(latch);
 
-		self.set_break(nodes, set, latch, end);
-		self.set_continue(nodes, set, latch, start);
+		self.set_break(view, set, latch, end);
+		self.set_continue(view, set, latch, start);
 
-		nodes.add_edge(latch, end);
-		nodes.add_edge(latch, start);
+		view.add_edge(latch, end);
+		view.add_edge(latch, start);
 	}
 
 	/// Applies the restructuring algorithm to the given set of nodes.
 	/// The start node of the structured repetition is returned.
-	pub fn run<N: Nodes>(&mut self, nodes: &mut N, set: Slice) -> usize {
-		self.find_entries_and_exits(nodes, set);
+	pub fn run<N: View>(&mut self, view: &mut N, set: Slice) -> usize {
+		self.find_entries_and_exits(view, set);
 
 		self.additional.clear();
 
-		let start = self.find_or_set_start(nodes);
-		let end = self.find_or_set_end(nodes, set);
+		let start = self.find_or_set_start(view);
+		let end = self.find_or_set_end(view, set);
 
-		if !Self::has_one_latch(nodes, set, start, end) {
-			self.set_new_latch(nodes, set, start, end);
+		if !Self::has_one_latch(view, set, start, end) {
+			self.set_new_latch(view, set, start, end);
 		}
 
 		start

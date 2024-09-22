@@ -4,8 +4,8 @@
 //        Helge Bahmann, Jan Christian Meyer, and Magnus Jahre.
 
 pub mod branch;
-pub mod nodes;
 pub mod pass;
 pub mod repeat;
+pub mod view;
 
 pub use set;

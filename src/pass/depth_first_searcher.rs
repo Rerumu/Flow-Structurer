@@ -1,4 +1,4 @@
-use crate::{nodes::Successors, set::Set};
+use crate::{set::Set, view::Successors};
 
 struct Visit {
 	id: usize,
@@ -23,7 +23,7 @@ impl DepthFirstSearcher {
 		}
 	}
 
-	fn queue_visit<N, H>(&mut self, nodes: &N, id: usize, mut handler: H)
+	fn queue_visit<N, H>(&mut self, view: &N, id: usize, mut handler: H)
 	where
 		N: Successors,
 		H: FnMut(usize, bool),
@@ -33,7 +33,7 @@ impl DepthFirstSearcher {
 		}
 
 		let start = self.successors.len();
-		let successors = nodes.successors(id).filter(|&id| self.nodes.contains(id));
+		let successors = view.successors(id).filter(|&id| self.nodes.contains(id));
 
 		self.successors.extend(successors);
 		self.visits.push(Visit {
@@ -54,7 +54,7 @@ impl DepthFirstSearcher {
 		&mut self.nodes
 	}
 
-	pub fn run<N, H>(&mut self, nodes: &N, start: usize, mut handler: H)
+	pub fn run<N, H>(&mut self, view: &N, start: usize, mut handler: H)
 	where
 		N: Successors,
 		H: FnMut(usize, bool),
@@ -63,13 +63,13 @@ impl DepthFirstSearcher {
 			return;
 		}
 
-		self.queue_visit(nodes, start, &mut handler);
+		self.queue_visit(view, start, &mut handler);
 
 		while let Some(mut visit) = self.visits.pop() {
 			if let Some(successor) = visit.successors.next_back() {
 				self.visits.push(visit);
 
-				self.queue_visit(nodes, self.successors[successor], &mut handler);
+				self.queue_visit(view, self.successors[successor], &mut handler);
 			} else {
 				handler(visit.id, true);
 

@@ -1,5 +1,5 @@
 use arbitrary::{Arbitrary, Error, Unstructured};
-use flow_structurer::nodes::Nodes;
+use flow_structurer::view::View;
 
 use super::list::{List, Statement};
 
